@@ -2,8 +2,13 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
+import pandas as pd
 import numpy as np
+import copy
+import networkx as nx
 
+torch.manual_seed(21)
+np.random.seed(21)
 
 # author: Kees @ https://stackoverflow.com/questions/54846905/pytorch-get-all-layers-of-model/69544742#69544742
 def get_children(model: torch.nn.Module):
@@ -64,12 +69,26 @@ def check_sparsity(model: torch.nn.Module, layers: int = None, single: bool = Fa
                     elif "weight_mask" in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
                         key_word = "weight_mask"
 
-                    _ , counts = np.unique(each_layer[i].state_dict()[key_word].numpy().flatten()  , return_counts=True) 
+                    arr , counts = np.unique(each_layer[i].state_dict()[key_word].numpy().flatten()  , return_counts=True) 
                     
-                    if relative:
-                        calc = counts[1]
+                    # if the array with unique values is 1, 
+                    # then all weights must be pruned or none of the weights are pruned
+                    # thus fixing the calc by hand
+                    if len(arr) == 1:
+                        if int(arr[0]) == 1:
+                            if relative:
+                                calc = counts[0]
+                            else:
+                                calc = 100
+                        
+                        elif int(arr[0]) == 0:
+                            calc = 0
+                    
                     else:
-                        calc = (counts[1] / (counts[0] + counts[1])) * 100     
+                        if relative:
+                            calc = counts[1]
+                        else:
+                            calc = (counts[1] / (counts[0] + counts[1])) * 100     
                               
              # if single arg is False, the sparsity of all parsed layers is calculated at once, while differentiating between the different keywords "flag" and "weight_mask"
              elif not single:
@@ -79,9 +98,23 @@ def check_sparsity(model: torch.nn.Module, layers: int = None, single: bool = Fa
                     elif "weight_mask" in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
                         key_word = "weight_mask"
 
-                    _ , counts = np.unique(each_layer[i].state_dict()[key_word].numpy().flatten()  , return_counts=True)
-                    all_zeros += counts[0]
-                    all_ones += counts[1]
+                    arr , counts = np.unique(each_layer[i].state_dict()[key_word].numpy().flatten()  , return_counts=True)
+                    
+                    # if the array with unique values is 1, 
+                    # then all weights must be pruned or none of the weights are pruned
+                    # thus fixing the calc by hand
+                    if len(arr) == 1:
+                        if int(arr[0]) == 1:
+                                all_zeros += 0
+                                all_ones += counts[0]
+                            
+                        elif int(arr[0]) == 0:
+                            all_zeros += counts[0]
+                            all_ones += 0
+                    
+                    else:
+                        all_zeros += counts[0]
+                        all_ones += counts[1]
                         
         
         # if single arg is False, then the sparsity of multiple layers must be calculated, thus using the all_ones and all_zeros variables to calculate after for loop above is done        
@@ -98,12 +131,27 @@ def check_sparsity(model: torch.nn.Module, layers: int = None, single: bool = Fa
                 elif "weight_mask" in each_layer[i].state_dict():
                     key_word = "weight_mask"
                 
-                _ , counts = np.unique(each_layer[i].state_dict()[key_word].numpy().flatten()  , return_counts=True)
-
-                if relative:
-                    calc = counts[1]
+                arr , counts = np.unique(each_layer[i].state_dict()[key_word].numpy().flatten()  , return_counts=True)
+                
+                # if the array with unique values is 1, 
+                # then all weights must be pruned or none of the weights are pruned
+                # thus fixing the calc by hand
+                if len(arr) == 1:
+                        if int(arr[0]) == 1:
+                            if relative:
+                                calc = counts[0]
+                            else:
+                                calc = 100
+                        
+                        elif int(arr[0]) == 0:
+                            calc = 0
+                    
                 else:
-                    calc = (counts[1] / (counts[0] + counts[1])) * 100
+                    if relative:
+                        calc = counts[1]
+                    else:
+                        calc = (counts[1] / (counts[0] + counts[1])) * 100
+                        
                 sparsities[f"layer_{i}"] = round(calc , 3)
             
 
@@ -122,9 +170,20 @@ def check_sparsity(model: torch.nn.Module, layers: int = None, single: bool = Fa
             elif "weight_mask" in each_layer[i].state_dict():
                 key_word = "weight_mask"
                     
-            _ , counts = np.unique(each_layer[i].state_dict()[key_word].numpy().flatten()  , return_counts=True)
-            all_zeros += counts[0]
-            all_ones += counts[1]
+            arr , counts = np.unique(each_layer[i].state_dict()[key_word].numpy().flatten()  , return_counts=True)
+            
+            if len(arr) == 1:
+                if int(arr[0]) == 1:
+                        all_zeros += 0
+                        all_ones += counts[0]
+
+                elif int(arr[0]) == 0:
+                    all_zeros += counts[0]
+                    all_ones += 0
+                    
+            else:
+                all_zeros += counts[0]
+                all_ones += counts[1]
 
     calc = (all_ones / (all_zeros + all_ones)) * 100
     sparsities["overall_sparsity"] = round(calc , 3)
@@ -140,8 +199,224 @@ def check_sparsity(model: torch.nn.Module, layers: int = None, single: bool = Fa
 
 
 
+def get_filters(model: torch.nn.Module, layers: int = None):
+    """
+    CHANGE
+    """
+    
+    # get a list of all the layers in the model
+    each_layer = get_children(model)
+    
+    # layers that do not contribute to sparsity
+    banned_layers = ["Identity2d()",
+                     "ReLU()",
+                     "Flatten(start_dim=1, end_dim=-1)",
+                     "Conv2d(16, 32, kernel_size=(1, 1), stride=(2, 2), bias=False)", 
+                     "Conv2d(32, 64, kernel_size=(1, 1), stride=(2, 2), bias=False)",
+                     ]
+
+    # declare empty list for all filters in which single filter will be appended
+    all_filters = []
+    
+        
+    # if list of layers is passed, we iterate over them    
+    if layers != None:
+        for i in layers:
+            if "running_mean" not in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
+                if "flag" in each_layer[i].state_dict():
+                    key_word = "flag"
+                elif "weight_mask" in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
+                    key_word = "weight_mask"
+
+                    single_filter = np.array(each_layer[i].state_dict()[key_word]) * np.array(each_layer[i].state_dict()["weight"])
+
+                    all_filters.append(single_filter)   
+
+    # if no layers are passed, that means every layer is selected       
+    elif layers == None:
+        for i in range((len(each_layer))):
+            if "running_mean" not in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
+                if "flag" in each_layer[i].state_dict():
+                    key_word = "flag"
+                elif "weight_mask" in each_layer[i].state_dict():
+                    key_word = "weight_mask"
+                
+                single_filter = np.array(each_layer[i].state_dict()[key_word]) * np.array(each_layer[i].state_dict()["weight"])
+
+                all_filters.append(single_filter) 
+                
+        
+    return all_filters
 
 
+"""
+def get_feature_map(image: np.ndarray, filters: np.ndarray, layers: int = None):
+    
+    #### doc string
+    
+    all_feature_maps = []
+    single = False
+    
+    if isinstance(layers, int):
+        layers = [layers]
+    
+    # take max of layer list 
+    if layers == None:
+        wanted_layer = len(filters)
+    else:
+        wanted_layer = max(layers) + 1
+        
+        if len(layers) == 1:
+            single = True
+    
+    
+    for i in range(wanted_layer):
+
+        filter_for_layer = torch.from_numpy(filters[i])
+
+        feature_maps = torch.nn.functional.conv2d(image, filter_for_layer, padding=1, dilation=1)
+
+        image = feature_maps
+        
+        if layers == None:
+            all_feature_maps.append(feature_maps[0].numpy())
+        elif i in layers:
+            all_feature_maps.append(feature_maps[0].numpy())
+    
+    if single:
+        return all_feature_maps[0]     
+    
+    return all_feature_maps
+"""
+
+
+def get_feature_map(image: np.ndarray, filters: np.ndarray, layers: int = None, dense: str = None):
+    
+    #### doc string
+    assert dense in [None, "last", "all"]
+    all_feature_maps = []
+    single = False
+    
+    if isinstance(layers, int):
+        layers = [layers]
+    
+    # take max of layer list 
+    if layers == None:
+        wanted_layer = len(filters)
+    else:
+        wanted_layer = max(layers) + 1
+        
+        if len(layers) == 1:
+            single = True
+    
+    
+    for i in range(wanted_layer):
+
+        filter_for_layer = torch.from_numpy(filters[i])
+        
+        if dense == "all":
+            if i == 0:
+                first_image = image.flatten()
+                feature_maps = torch.nn.functional.linear(first_image, filter_for_layer)
+                
+            else:
+                feature_maps = torch.nn.functional.linear(image, filter_for_layer)
+            
+            
+        elif dense == "last" and i == wanted_layer - 1:
+            out = torch.nn.functional.avg_pool2d(image, image.size()[3])
+            out = out.view(out.size(0), -1)
+            feature_maps = torch.nn.functional.linear(out, filter_for_layer)
+        
+        else:
+            feature_maps = torch.nn.functional.conv2d(image, filter_for_layer, padding=1, dilation=1)
+
+        image = feature_maps
+        
+        if layers == None:
+            if dense == "all":
+                all_feature_maps.append(feature_maps.numpy())
+            else:   
+                all_feature_maps.append(feature_maps[0].numpy())
+        elif i in layers:
+            if dense == "all":
+                all_feature_maps.append(feature_maps.numpy())
+            else:   
+                all_feature_maps.append(feature_maps[0].numpy())
+    
+    if single:
+        return all_feature_maps[0]     
+    
+    return all_feature_maps
+
+
+"""
+def get_feature_map(image: np.ndarray, filters: np.ndarray, layers: int = None, dense: str = "last"):
+    
+    #### doc string
+    assert dense in ["last", "all"]
+    all_feature_maps = []
+    single = False
+    
+    if isinstance(layers, int):
+        layers = [layers]
+    
+    # take max of layer list 
+    if layers == None:
+        wanted_layer = len(filters)
+    else:
+        wanted_layer = max(layers) + 1
+        
+        if len(layers) == 1:
+            single = True
+    
+    
+    for i in range(wanted_layer):
+
+        filter_for_layer = torch.from_numpy(filters[i])
+        
+        if dense == "all":
+            print(i)
+            if i == 0:
+                first_image = image.flatten()
+                feature_maps = torch.nn.functional.linear(first_image, filter_for_layer)
+                print(feature_maps.shape)
+                
+            else:
+                feature_maps = torch.nn.functional.linear(image, filter_for_layer)
+                print(feature_maps.shape)
+            
+            #if "last layer und so":
+                # use softmax ?
+            #    pass
+            
+        elif dense == "last" and i == wanted_layer - 1:
+            out = torch.nn.functional.avg_pool2d(image, image.size()[3])
+            out = out.view(out.size(0), -1)
+            feature_maps = torch.nn.functional.linear(out, filter_for_layer)
+        
+        else:
+            feature_maps = torch.nn.functional.conv2d(image, filter_for_layer, padding=1, dilation=1)
+
+        image = feature_maps
+        
+        if layers == None:
+            if dense == "all":
+                all_feature_maps.append(feature_maps.numpy())
+            else:   
+                all_feature_maps.append(feature_maps[0].numpy())
+        elif i in layers:
+            if dense == "all":
+                all_feature_maps.append(feature_maps.numpy())
+            else:   
+                all_feature_maps.append(feature_maps[0].numpy())
+    
+    if single:
+        return all_feature_maps[0]     
+    
+    return all_feature_maps
+
+"""
 
 class get_images_cifar10(object):
     def __init__(self, batch_size: int = 1):
@@ -181,7 +456,8 @@ class get_images_cifar10(object):
 
         classes = ('plane', 'car', 'bird', 'cat',
                    'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-        
+
+        grid_sizes = {'16': []}        
         
         self.trainloader = trainloader
         self.testloader = testloader
@@ -229,13 +505,544 @@ class get_images_cifar10(object):
         
     
     
-    def display(self):
-        img = torchvision.utils.make_grid(self.images)
+    def display(self, size = (5,5)):
+
+        good_grid = make_good_grid(self.batch_size)
         
-        img = img / 2 + 0.5     # unnormalize
-        npimg = np.clip(img.numpy(), 0, 1)
-        plt.imshow(np.transpose(npimg, (1, 2, 0)))
+        if self.batch_size == 1:
+            img = self.images[0]
+        
+            img = img / 2 + 0.5     # unnormalize
+            npimg = np.clip(img.numpy(), 0, 1)
+
+            plt.subplots(figsize = size)
+            plt.imshow(np.transpose(npimg, (1, 2, 0)))
+            plt.suptitle(self.classes[self.labels[0]])
+            plt.axis('off')
+            plt.show()
+
+        else:
+            fig, axs = plt.subplots(nrows=good_grid[1], ncols=good_grid[0], figsize=size)
+
+            for idx,ax in enumerate(axs.flat):
+                img = self.images[idx]
+                img = img / 2 + 0.5     # unnormalize
+                npimg = np.clip(img.numpy(), 0, 1)
+                ax.set_title(self.classes[self.labels[idx]])
+                ax.imshow(np.transpose(npimg, (1, 2, 0)))
+                ax.xaxis.set_visible(False)
+                ax.yaxis.set_visible(False)
+
+            fig.tight_layout()
+            plt.show()
+
+
+
+class get_images_mnist(object):
+    def __init__(self, batch_size: int = 1):
+        self.batch_size = batch_size
+        
+    
+        normalize = transforms.Normalize((0.1307,), (0.3081,))
+
+        transform_train = transforms.Compose(
+                            [
+                                #transforms.RandomCrop(32, padding=4),
+                                #transforms.RandomHorizontalFlip(),
+                                transforms.ToTensor(),
+                                normalize,
+                            ]
+                        )
+
+        transform_test = transforms.Compose(
+                            [
+                                transforms.ToTensor(),
+                                normalize
+                            ]
+                        )
+
+        trainset = torchvision.datasets.MNIST(root='./data', train=True,
+                                            download=True, transform=transform_train)
+        trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
+                                                  shuffle=True, num_workers=1)
+
+        testset = torchvision.datasets.MNIST(root='./data', train=False,
+                                               download=True, transform=transform_test)
+        testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
+                                                 shuffle=False, num_workers=1)
+
+        classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
+
+        grid_sizes = {'16': []}        
+        
+        self.trainloader = trainloader
+        self.testloader = testloader
+        self.classes = classes
+
+        
+        self.get_new_images(output = True)
+   
+    
+    def get_new_images(self, target: str = "random", output: bool = False):
+        # get some random training images
+        if target == "random":
+            dataiter = iter(self.trainloader)
+            images, labels = next(dataiter)
+
+            self.images = images
+            self.labels = labels
+            
+        elif target in self.classes:
+            target_images = torch.zeros((self.batch_size, 3, 32, 32))
+            counter = 0
+            correct_label = None
+            dataiter = iter(self.trainloader)
+
+            while counter < self.batch_size:
+                images, labels = next(dataiter)
+                
+                for i, j in enumerate(labels):
+                    labl = self.classes[j]
+                    
+                    if target == labl:
+                        if correct_label == None:
+                            correct_label = j  
+                        target_images[counter] = images[i]
+                        counter += 1
+                        
+                        
+            self.images = target_images
+            self.labels = [correct_label] * self.batch_size
+                
+            
+        
+        if output:
+            return self.images, self.labels
+        
+    
+    
+    def display(self, size = (5,5), unique = False):
+
+        good_grid = make_good_grid(self.batch_size, unique)
+        
+        if self.batch_size == 1:
+            img = self.images[0]
+        
+            img = img / 2 + 0.5     # unnormalize
+            npimg = np.clip(img.numpy(), 0, 1)
+
+            plt.subplots(figsize = size)
+            plt.imshow(np.transpose(npimg, (1, 2, 0)))
+            plt.suptitle(self.classes[self.labels[0]])
+            plt.axis('off')
+            plt.show()
+
+        else:
+            fig, axs = plt.subplots(nrows=good_grid[1], ncols=good_grid[0], figsize=size)
+
+            for idx,ax in enumerate(axs.flat):
+                img = self.images[idx]
+                img = img / 2 + 0.5     # unnormalize
+                npimg = np.clip(img.numpy(), 0, 1)
+                ax.set_title(self.classes[self.labels[idx]])
+                ax.imshow(np.transpose(npimg, (1, 2, 0)))
+                ax.xaxis.set_visible(False)
+                ax.yaxis.set_visible(False)
+
+            fig.tight_layout()
+            plt.show()
+
+
+
+def make_good_grid(batch_size, unique = False):
+
+    ''' NEED DOCSTRING 
+    '''
+
+    if not unique:
+        target = batch_size
+    else:
+        target = unique
+    
+    candidates = []
+    for i in range(target + 1):
+        for j in range(target + 1):
+            if i * j == target:
+                candidates.append([i,j])
+
+    for i,j in candidates:
+        result = abs(i - j)
+        if result <= target:
+            target = result
+            best_result = i,j
+
+    return best_result
+
+
+
+def get_activation_series(images, filters, dense):
+    ''' NEED DOCSTRING
+    '''
+    
+    
+    # create list in which all other activation values will be put into
+    series_of_activations = []
+
+    # get activation values for first image so we can iterate over them and the
+    # flattend feature map values can be appended into series_of_activations
+    if images.shape[0] == 1:
+        first_activation = get_feature_map(images, filters, dense = dense) 
+    else:
+        first_activation = get_feature_map(images[0][None], filters, dense = dense)    
+
+
+    # iterate over all feature maps of first image and flatten them so they can be concatenated with other feature maps later on
+    for idx_layer, layer in enumerate(first_activation):
+        units_of_layer = []
+        for idx_unit, unit in enumerate(layer):
+            flat_unit = unit.flatten()
+            units_of_layer.append(flat_unit)
+        series_of_activations.append(units_of_layer)
+ 
+  
+    # iterate over images and call feature map function
+    for idx_img, img in enumerate(images, start = 1):
+        units_activation = get_feature_map(img[None], filters, dense = dense)
+
+        for idx_layer, layer in enumerate(units_activation):
+            for idx_unit, unit in enumerate(layer):
+                series_of_activations[idx_layer][idx_unit] = np.concatenate((series_of_activations[idx_layer][idx_unit].flatten(), units_activation[idx_layer][idx_unit].flatten()))
+
+    
+    return series_of_activations
+
+
+
+def get_correlation(activations_model_1, activations_model_2 = None):
+    '''NEEEEEEED DOOCSTRING
+    '''
+
+
+    # For convolutional layers, we compute the mean and standard deviation of each channel. 
+
+    # The mean and standard deviation for a given network and layer is a vector with length equal to 
+    # the number of channels (for convolutional layers)
+    
+    # calculate corelation after converging learning paper
+
+    # within or without
+    
+    if activations_model_2 == None:
+        activations_model_2 = activations_model_1
+        
+    
+    number_of_layers = min(len(activations_model_1), len(activations_model_2))
+    
+    all_cors = []
+
+    for layer in range(number_of_layers):
+        layer_cors = np.zeros((len(activations_model_1[layer]), len(activations_model_2[layer])))
+        for i in range(len(activations_model_1[layer])):
+            for j in range(len(activations_model_2[layer])):
+                '''
+                calc_mean_i = sum(activations_model_1[layer][i]) / len(activations_model_1[layer][i])
+                calc_mean_j = sum(activations_model_2[layer][j]) / len(activations_model_2[layer][j])
+                calc_std_i  = np.sqrt(sum((activations_model_1[layer][i] - calc_mean_i) ** 2) / len(activations_model_1[layer][i]))
+                calc_std_j  = np.sqrt(sum((activations_model_2[layer][j] - calc_mean_j) ** 2) / len(activations_model_2[layer][j]))
+
+                x_minus_mean_i = activations_model_1[layer][i] - calc_mean_i
+                x_minus_mean_j = activations_model_2[layer][j] - calc_mean_j
+
+                cor_i_j = (sum(x_minus_mean_i * x_minus_mean_j) / (len(x_minus_mean_i * x_minus_mean_j))) / (calc_std_i * calc_std_j)
+                '''
+                # built in function of mean and std way faster but less accurate
+                cor_i_j = ((activations_model_1[layer][i] - activations_model_1[layer][i].mean()) * (activations_model_2[layer][j] - activations_model_2[layer][j].mean())).mean() / (activations_model_1[layer][i].std() * activations_model_2[layer][j].std())
+
+                
+                if np.isnan(cor_i_j):
+                    cor_i_j = 0
+
+                layer_cors[i][j] = cor_i_j
+
+        all_cors.append(layer_cors)
+        
+    return all_cors
+
+
+def set_to_dic(graph_nodes_as_set):
+    
+    matching = np.array(list(graph_nodes_as_set))  
+    updated_matching = []
+    
+    set_to_dic = np.zeros(len(matching), dtype=int)
+    
+    for node in matching:
+        
+        new_node = [node[0], node[1]]
+        
+        if node[1] < node[0]:
+            new_node = [node[1], node[0]]
+            
+        updated_matching.append(new_node)
+    
+    for node in updated_matching:
+        for i in range(len(updated_matching)):
+            if node[0] == i:
+                set_to_dic[i] = node[1]             
+    return set_to_dic
+    
+
+
+def find_max_matching(mat, ignore_diag = False):
+    # build bipartite graph
+    gg = nx.Graph()
+    assert mat.shape[0] == mat.shape[1]
+    size = mat.shape[0]
+    for ii in range(size):
+        for jj in range(size):
+            if ignore_diag and ii == jj:
+                continue
+            gg.add_edge(ii, jj+size, weight=mat[ii,jj])
+
+    matching = nx.max_weight_matching(gg, maxcardinality=True)
+    
+    matching = set_to_dic(matching)
+    
+    order = np.array([matching[ii]-size for ii in range(size)])
+    
+    return order
+
+
+def find_semi_matching(mat, ignore_diag = False):
+    ''' for each unit in Net1, we find the unit in Net2 with maximum correlation to it, 
+        which is the max along each row
+    '''
+    assert mat.shape[0] == mat.shape[1]
+    size = mat.shape[0]
+    
+    order = np.zeros(size, dtype=int)
+    
+    for unit in range(size):
+            
+            find_max = mat[unit,:].max()
+            find_max_index = list(mat[unit,:]).index(find_max)
+            
+            order[unit] = find_max_index
+             
+    return order
+
+
+
+def change_mat(mat, order):
+    """used to create matrix from greedy semi matching"""
+    # "The matching is returned as a dictionary, such that matches[v] == w if node v is matched to node w. " - von networkx 
+    new_matrix = mat.copy()
+    
+    for idx, i in enumerate(order):
+        new_matrix[:,idx] = mat[:,i].copy()
+    
+    return new_matrix
+
+"""
+def change_mat_max(mat, order):
+    '''taken from that paper, combination of 2 functions'''
+    
+    seen = set()
+    ret = []
+    lengths = []
+    while len(seen) < len(order):
+        # Find first new element
+        for ii in range(len(order)):
+            if ii not in seen:
+                idx_start = ii
+                break
+        this_length = 1
+        ret.append(idx_start)
+        seen.add(idx_start)
+        ii = order[idx_start]
+        while ii != idx_start:
+            ret.append(ii)
+            seen.add(ii)
+            ii = order[ii]
+            this_length += 1
+        lengths.append(this_length)
+    
+    #return ret,lengths
+    
+    new_order = np.array(ret)
+    ret = mat[new_order,:][:,new_order]
+    assert np.all(abs(np.sort(mat.sum(0)) - np.sort(ret.sum(0))) < 1.0), 'sanity check'
+    assert np.all(abs(np.sort(mat.sum(1)) - np.sort(ret.sum(1))) < 1.0), 'sanity check'
+    return ret
+"""    
+
+
+
+def get_image_patch(images, layer, unit, filters, dense, how_many = 1) :
+    """similar to get_activation_series but returns single most high correlation oder so"""
+    
+    #create max cor
+    max_cor = float('-inf')
+
+    # if only one image is parsed
+    for i in range(how_many):    
+        if images.shape[0] == 1:
+            first_activation = get_feature_map(images, filters, dense = dense)
+            wanted_layer_unit = first_activation[layer][unit]
+            max_idx = np.unravel_index(np.argmax(wanted_layer_unit, axis=None), wanted_layer_unit.shape)
+            max_img = images
+
+        else:
+            # iterate over images and call feature map function
+            for idx_img, img in enumerate(images):
+                units_activation = get_feature_map(img[None], filters, dense = dense)
+                wanted_layer_unit = units_activation[layer][unit]
+
+                if np.amax(wanted_layer_unit) > max_cor:
+                    max_cor = np.amax(wanted_layer_unit)
+                    max_idx = np.unravel_index(np.argmax(wanted_layer_unit, axis=None), wanted_layer_unit.shape)
+                    max_img = img
+    
+    # normalize image before returning for cleaner notebook appearance
+    img = max_img / 2 + 0.5     # unnormalize
+    npimg = np.clip(img.numpy(), 0, 1)
+    npimg = np.transpose(npimg, (1, 2, 0))
+    max_img = np.pad(npimg, ((1,1), (1,1), (0,0)), 'constant', constant_values=((1,1)))
+    
+    # add 1 to each index for added padding 
+    max_idx = [max_idx[0] + 1 , max_idx[1] + 1]
+    
+    return max_idx, max_img
+
+
+
+def order_by_dist(mod1, mod2, dist_measure, fc = False):
+    """ NEED DOC STRING
+    
+    """
+    
+    mod2_copy = copy.deepcopy(mod2)
+      
+    for layer in range(len(mod1)):
+        # look at layer and create distance matrix for it
+        new_mat = np.zeros((len(mod1[layer]), len(mod2[layer])), dtype=float)
+    
+        for i in range(len(mod1[layer])):
+            for j in range(len(mod2[layer])):
+                dist = 0
+                dist = dist_measure(mod1[layer][i].flatten(),mod2_copy[layer][j].flatten())
+
+                new_mat[i][j] = dist
+        # find best match of units in each network through smallest distance 
+        match = find_min_matching(new_mat)
+        #print(match)
+        # iterate over current layer and change model2 according to best matches order with model1 found above
+        mod2_old = copy.deepcopy(mod2_copy)
+
+        for i in range(len(mod2_copy[layer])):
+            new_idx_i = match[i]
+
+            mod2_copy[layer][i] =  mod2_old[layer][new_idx_i]
+
+
+        #"""
+        # for each changed unit in layer x, each channel of each unit in layer x + 1 needs to be changed accordingly
+        if not fc:
+            if layer + 1 < len(mod2_copy) - 1:
+                for idx_u, unit in enumerate(mod2_copy[layer + 1]):
+                    #print(idx_u)
+                    for idx_c, channel in enumerate(unit):
+                        new_idx_u = match[idx_c]
+                        mod2_copy[layer + 1][idx_u][idx_c] = mod2_old[layer + 1][idx_u][new_idx_u]
+
+    return mod2_copy
+
+
+def find_dist_matching_semi(mat, ignore_diag = False):
+    ''' for each unit in Net1, we find the unit in Net2 with maximum correlation to it, 
+        which is the max along each row
+    '''
+    assert mat.shape[0] == mat.shape[1]
+    size = mat.shape[0]
+    
+    order = np.zeros(size, dtype=int)
+    
+    for unit in range(size):
+            
+            find_min = mat[unit,:].min()
+            find_min_index = list(mat[unit,:]).index(find_min)
+            
+            order[unit] = find_min_index
+             
+    return order
+
+
+
+def find_min_matching(mat, ignore_diag = False):
+    # build bipartite graph
+    gg = nx.Graph()
+    assert mat.shape[0] == mat.shape[1]
+    size = mat.shape[0]
+    for ii in range(size):
+        for jj in range(size):
+            if ignore_diag and ii == jj:
+                continue
+            gg.add_edge(ii, jj+size, weight=mat[ii,jj])
+
+    matching = nx.min_weight_matching(gg, maxcardinality=True)
+    
+    matching = set_to_dic(matching)
+    
+    order = np.array([matching[ii]-size for ii in range(size)])
+    
+    return order
+
+
+
+def make_table(seed_21, seed_42, seed_63, title):
+    assert len(seed_21) == len(seed_42) == len(seed_63)
+
+    if len(seed_21) == 7:
+        df = pd.DataFrame({})
+        df[0] = list(seed_21.values())
+        df[1] = list(seed_42.values())
+        df[2] = list(seed_63.values())
+        df.index = ["layer_1", "layer_2", "layer_3", "layer_4", "layer_5", "layer_6", "overall_sparsity"]
+        df.columns = ["seed 21", "seed 42", "seed 63"]
+
+
+        fig, ax = plt.subplots()
+        fig.patch.set_visible(False)
+        ax.axis('off')
+        ax.axis('tight')
+
+        table = ax.table(cellText=df.values, 
+                         rowLabels = df.index,
+                         rowColours = plt.cm.BuPu(np.full(len(df.index), 0.1)),
+                         colLabels=df.columns,
+                         colColours = plt.cm.BuPu(np.full(len(df.columns), 0.1)),
+                         loc='center',
+                         cellLoc='center')
+
+        ax.set_title(f'{title}', y=0.75)
+        fig.tight_layout()
         plt.show()
-        print('GroundTruth: ', ' '.join(f'{self.classes[self.labels[j]]:5s}' for j in range(self.batch_size)))
         
+    else:
+        pass
+
+
+def plot_units(units, model, sparse):
+    fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(24,6))
+
+    titles = ["21", "42", "63"]
+    count = 0
+
+    for ax in axs.flat:
+        img = ax.imshow(units[count].reshape((28,28)), cmap = "rainbow")
+        fig.colorbar(img)
+        ax.set_title(f"{model}     {sparse}% sparsity     seed {titles[count]}")
+        ax.tick_params(bottom=False, labelbottom=False, left=False, labelleft=False)
+        fig.show()
+        count += 1
         

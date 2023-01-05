@@ -314,7 +314,7 @@ def load_gemini_fc_20_sparsity_seed_21():
 
     model = gem_fc(input_shape, num_classes)
     
-    model.load_state_dict(torch.load("/Users/tjarkdarius/Desktop/New_results/20/gem_20_21/model_after_finetune.pth", map_location=torch.device('cpu')))
+    model.load_state_dict(torch.load("All_Results/20/gem_20_21/model_after_finetune.pth", map_location=torch.device('cpu')))
 
     model.eval()
 
@@ -340,7 +340,7 @@ def load_gemini_fc_20_sparsity_seed_42():
 
     model = gem_fc(input_shape, num_classes)
     
-    model.load_state_dict(torch.load("/Users/tjarkdarius/Desktop/New_results/20/gem_20_42/model_after_finetune.pth", map_location=torch.device('cpu')))
+    model.load_state_dict(torch.load("All_Results/20/gem_20_42/model_after_finetune.pth", map_location=torch.device('cpu')))
 
     model.eval()
 
@@ -365,7 +365,7 @@ def load_gemini_fc_20_sparsity_seed_63():
 
     model = gem_fc(input_shape, num_classes)
     
-    model.load_state_dict(torch.load("/Users/tjarkdarius/Desktop/New_results/20/gem_20_63/model_after_finetune.pth", map_location=torch.device('cpu')))
+    model.load_state_dict(torch.load("All_Results/20/gem_20_63/model_after_finetune.pth", map_location=torch.device('cpu')))
 
     model.eval()
 
