@@ -916,7 +916,7 @@ def get_image_patch(images, layer, unit, filters, dense, how_many = 1) :
 
 
 
-def order_by_dist(mod1, mod2, dist_measure, fc = False):
+def order_by_dist(mod1, mod2, dist_measure, fc = False, nED = False):
     """ NEED DOC STRING
     
     """
@@ -930,7 +930,11 @@ def order_by_dist(mod1, mod2, dist_measure, fc = False):
         for i in range(len(mod1[layer])):
             for j in range(len(mod2[layer])):
                 dist = 0
-                dist = dist_measure(mod1[layer][i].flatten(),mod2_copy[layer][j].flatten())
+                if nED:
+                    dist = dist_measure(np.nonzero(mod1[layer][i].flatten())[0], np.nonzero(mod2_copy[layer][j].flatten())[0])
+
+                else:    
+                    dist = dist_measure(mod1[layer][i].flatten(),mod2_copy[layer][j].flatten())
 
                 new_mat[i][j] = dist
         # find best match of units in each network through smallest distance 
