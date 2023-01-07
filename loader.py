@@ -11,6 +11,41 @@ from syngem_utils import *
 #############################
 
 
+def load_gem_acc(model, sparse):
+    seed_21 = pd.read_csv(f"All_Results/{model}/{sparse}/gem_{sparse}_21/acc_and_sparsity.csv")
+    seed_42 = pd.read_csv(f"All_Results/{model}/{sparse}/gem_{sparse}_42/acc_and_sparsity.csv")
+    seed_63 = pd.read_csv(f"All_Results/{model}/{sparse}/gem_{sparse}_63/acc_and_sparsity.csv")
+    
+    df_add = seed_21.add(seed_42, fill_value=0)
+    df_add = df_add.add(seed_63, fill_value=0)
+    
+    df_div = df_add.div(3)
+    
+    df_div = df_div.drop(["epoch", "test_acc_before_rounding", "test_acc","train_acc", "regularization_loss", "model_sparsity"], axis = 1)
+    df_div = df_div.drop(np.arange(0,25,1))
+    df_div = df_div.reset_index()
+    df_div = df_div.drop("index", axis=1)
+    return df_div
+
+
+def load_gem_resnet_acc(sparse):
+    seed_21 = pd.read_csv("All_Results/Resnet/{sparse}/gem_{sparse}_21/acc_and_sparsity.csv")
+    seed_42 = pd.read_csv("All_Results/Resnet/{sparse}/gem_{sparse}_42/acc_and_sparsity.csv")
+    seed_63 = pd.read_csv("All_Results/Resnet/{sparse}/gem_{sparse}_63/acc_and_sparsity.csv")
+    
+    df_add = seed_21.add(seed_42, fill_value=0)
+    df_add = df_add.add(seed_63, fill_value=0)
+    
+    df_div = df_add.div(3)
+    
+    df_div = df_div.drop(["epoch", "test_acc_before_rounding", "test_acc","train_acc", "regularization_loss", "model_sparsity"], axis = 1)
+    df_div = df_div.drop(np.arange(0,25,1))
+    df_div = df_div.reset_index()
+    df_div = df_div.drop("index", axis=1)
+    return df_div
+
+
+"""
 def load_gem_50_acc():
     seed_21 = pd.read_csv("All_Results/50/gem_50_21/acc_and_sparsity.csv")
     seed_42 = pd.read_csv("All_Results/50/gem_50_42/acc_and_sparsity.csv")
@@ -95,7 +130,7 @@ def load_gem_2_acc():
     df_div = df_div.drop("index", axis=1)
     return df_div
 
-
+"""
 
 ###########################
 

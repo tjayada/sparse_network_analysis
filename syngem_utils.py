@@ -1006,34 +1006,43 @@ def find_min_matching(mat, ignore_diag = False):
 def make_table(seed_21, seed_42, seed_63, title):
     assert len(seed_21) == len(seed_42) == len(seed_63)
 
+    df = pd.DataFrame({})
+    df[0] = list(seed_21.values())
+    df[1] = list(seed_42.values())
+    df[2] = list(seed_63.values())
+
     if len(seed_21) == 7:
-        df = pd.DataFrame({})
-        df[0] = list(seed_21.values())
-        df[1] = list(seed_42.values())
-        df[2] = list(seed_63.values())
+        adjust_title = 0.75
         df.index = ["layer_1", "layer_2", "layer_3", "layer_4", "layer_5", "layer_6", "overall_sparsity"]
-        df.columns = ["seed 21", "seed 42", "seed 63"]
-
-
-        fig, ax = plt.subplots()
-        fig.patch.set_visible(False)
-        ax.axis('off')
-        ax.axis('tight')
-
-        table = ax.table(cellText=df.values, 
-                         rowLabels = df.index,
-                         rowColours = plt.cm.BuPu(np.full(len(df.index), 0.1)),
-                         colLabels=df.columns,
-                         colColours = plt.cm.BuPu(np.full(len(df.columns), 0.1)),
-                         loc='center',
-                         cellLoc='center')
-
-        ax.set_title(f'{title}', y=0.75)
-        fig.tight_layout()
-        plt.show()
         
     else:
-        pass
+        adjust_title = None
+        df.index = ["layer_1", "layer_2", "layer_3", "layer_4", "layer_5", 
+                    "layer_6", "layer_7", "layer_8", "layer_9", "layer_10", 
+                    "layer_11", "layer_12", "layer_13", "layer_14", "layer_15",
+                    "layer_16", "layer_17", "layer_18", "layer_19", "layer_20",
+                    "overall_sparsity"]
+    
+    df.columns = ["seed 21", "seed 42", "seed 63"]
+
+
+    fig, ax = plt.subplots()
+    fig.patch.set_visible(False)
+    ax.axis('off')
+    ax.axis('tight')
+
+    table = ax.table(cellText=df.values, 
+                     rowLabels = df.index,
+                     rowColours = plt.cm.BuPu(np.full(len(df.index), 0.1)),
+                     colLabels=df.columns,
+                     colColours = plt.cm.BuPu(np.full(len(df.columns), 0.1)),
+                     loc='center',
+                     cellLoc='center')
+
+    ax.set_title(f'{title}', y= adjust_title)
+    fig.tight_layout()
+    plt.show()
+ 
 
 
 def plot_units(units, model, sparse):

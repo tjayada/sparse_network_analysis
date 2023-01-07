@@ -18,7 +18,6 @@ optimizer: sgd #adam #sgd #adam
 
 # ===== Network training config ===== #
 post_epochs: 100
-prune_epochs: 100
 #wd: 0.0001 # 0
 #momentum: 0.9
 #batch_size: 128
@@ -27,6 +26,9 @@ prune_epochs: 100
 # ===== Sparsity =========== #
 pruner: synflow
 compression: 2
+reinitialize: True
+level_list: [10]
+compression_list: [2]
 #conv_type: SubnetConv
 #bn_type: NonAffineBatchNorm
 #freeze_weights: False
@@ -45,12 +47,12 @@ compression: 2
 
 # ===== Regularization ===== #
 #regularization: var_red_2 # var_red_2
-lmbda: 0 # 0.01 #0.0001 #0.000001
+#lmbda: 0 # 0.01 #0.0001 #0.000001
 
 
 # ===== Results ===== #
 #result_dir: synflow_results
-expid: synflow_resnet20_mnist_seed_42_epochs_100_compr_05
+expid: synflow_resnet20_cifar_seed_42_epochs_100_compr_2_multi
 
 
 # ===== Hardware setup ===== #

@@ -17,8 +17,8 @@ class Builder(object):
     def conv(self, kernel_size, in_planes, out_planes, stride=1, first_layer=False, groups=1):
         conv_layer = self.first_layer if first_layer else self.conv_layer
 
-        if first_layer:
-            print(f"==> Building first layer")
+        #if first_layer:
+            #print(f"==> Building first layer")
 
         #import pdb; pdb.set_trace()
         if kernel_size == 3:
@@ -150,8 +150,8 @@ class Builder(object):
 
 def get_builder():
 
-    print("==> Conv Type: {}".format(gem_miner_parser_args.conv_type))
-    print("==> BN Type: {}".format(gem_miner_parser_args.bn_type))
+    #print("==> Conv Type: {}".format(gem_miner_parser_args.conv_type))
+    #print("==> BN Type: {}".format(gem_miner_parser_args.bn_type))
 
     conv_layer = getattr(Utils.conv_type, gem_miner_parser_args.conv_type)
     bn_layer = getattr(Utils.bn_type, gem_miner_parser_args.bn_type)

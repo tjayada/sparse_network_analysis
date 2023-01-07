@@ -359,7 +359,7 @@ class ArgsHelper:
             for v in override_args:
                 loaded_yaml[v] = getattr(gem_miner_parser_args, v)
 
-        print(f"=> Reading YAML config from {gem_miner_parser_args.config}")
+        #print(f"=> Reading YAML config from {gem_miner_parser_args.config}")
         gem_miner_parser_args.__dict__.update(loaded_yaml)
 
 

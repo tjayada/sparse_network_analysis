@@ -129,7 +129,7 @@ class SynflowArgsHelper:
             for v in override_args:
                 loaded_yaml[v] = getattr(synflow_parser_args, v)
 
-        print(f"=> Reading YAML config from {synflow_parser_args.config}")
+        #print(f"=> Reading YAML config from {synflow_parser_args.config}")
         synflow_parser_args.__dict__.update(loaded_yaml)
 
 
