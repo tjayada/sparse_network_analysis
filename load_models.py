@@ -59,6 +59,36 @@ def load_synflow_model(model_name, sparse, seed):
 
 
 
+def load_random_model(model_name, sparse, seed):
+    from synflow_args_helper import synflow_parser_args
+    syn_yaml_txt = open(f'Configs/synflow_{model_name}.yml').read()
+    
+    syn_loaded_yaml = yaml.load(syn_yaml_txt, Loader=yaml.FullLoader)
+    
+    synflow_parser_args.__dict__.update(syn_loaded_yaml)
+    
+    if model_name == "FC":
+        from Models.mlp import fc as syn_fc
+        input_shape, num_classes = (1, 28, 28), 10
+        model = syn_fc(input_shape, num_classes)
+    
+    else:
+        from Models.lottery_resnet import resnet20 as syn_resnet20
+        D = 20
+        W = 16
+        plan = [(W, D), (2*W, D), (4*W, D)]
+        model = syn_resnet20(plan, 10)
+    
+    model.load_state_dict(torch.load(f"All_Results/{model_name}/{sparse}/rnd_{sparse}_{seed}/post-model.pt", map_location=torch.device('cpu')))
+    model.eval()
+
+    return model
+
+
+
+
+
+
 def load_synflow_resnet20_1_66_sparsity():
     from synflow_args_helper import synflow_parser_args
     syn_yaml_txt = open('/Users/tjarkdarius/Desktop/NEW_Results/3_synResults_1_6_percent_2_compr_40_acc/synflow_resnet20.yml').read()
