@@ -505,9 +505,9 @@ class get_images_cifar10(object):
         
     
     
-    def display(self, size = (5,5)):
+    def display(self, size = (5,5), unique = False):
 
-        good_grid = make_good_grid(self.batch_size)
+        good_grid = make_good_grid(self.batch_size, unique)
         
         if self.batch_size == 1:
             img = self.images[0]
@@ -889,7 +889,13 @@ def get_image_patch(images, layer, unit, filters, dense, how_many = 1) :
         if images.shape[0] == 1:
             first_activation = get_feature_map(images, filters, dense = dense)
             wanted_layer_unit = first_activation[layer][unit]
-            max_idx = np.unravel_index(np.argmax(wanted_layer_unit, axis=None), wanted_layer_unit.shape)
+            
+            if  abs(np.amax(wanted_layer_unit)) > abs(np.amin(wanted_layer_unit)):
+                max_idx = np.unravel_index(np.argmax(wanted_layer_unit, axis=None), wanted_layer_unit.shape)
+
+            else: 
+                max_idx = np.unravel_index(np.argmin(wanted_layer_unit, axis=None), wanted_layer_unit.shape)
+
             max_img = images
 
         else:
@@ -898,7 +904,12 @@ def get_image_patch(images, layer, unit, filters, dense, how_many = 1) :
                 units_activation = get_feature_map(img[None], filters, dense = dense)
                 wanted_layer_unit = units_activation[layer][unit]
 
-                if np.amax(wanted_layer_unit) > max_cor:
+                if  abs(np.amax(wanted_layer_unit)) > abs(np.amin(wanted_layer_unit)):
+                    max_mag = abs(np.amax(wanted_layer_unit))
+                else: 
+                    max_mag = abs(np.amin(wanted_layer_unit))
+
+                if  max_mag > max_cor:
                     max_cor = np.amax(wanted_layer_unit)
                     max_idx = np.unravel_index(np.argmax(wanted_layer_unit, axis=None), wanted_layer_unit.shape)
                     max_img = img

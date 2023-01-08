@@ -1,14 +1,14 @@
 {
-    "compression": 1.7,
+    "compression": 0.0,
     "compression_list": [
-        1.7
+        0.31
     ],
     "compression_schedule": "exponential",
     "config": "Configs/multi_synflow_resnet20.yml",
     "dataset": "cifar10",
     "dense_classifier": false,
     "experiment": "synflow",
-    "expid": "synflow_resnet20_cifar_seed_21_epochs_50_compr_0_3_multi",
+    "expid": "synflow_resnet20_cifar_seed_21_epochs_50_compr_0_31_multi",
     "gpu": 0,
     "invert": false,
     "level_list": [
@@ -36,7 +36,7 @@
     "pruner": "synflow",
     "pruner_list": [],
     "reinitialize": false,
-    "result_dir": "Results//synflow/synflow_resnet20_cifar_seed_21_epochs_50_compr_0_3_multi",
+    "result_dir": "Results//synflow/synflow_resnet20_cifar_seed_21_epochs_50_compr_0_31_multi",
     "save": true,
     "seed": 21,
     "shuffle": false,
