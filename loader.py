@@ -1,7 +1,108 @@
 import pandas as pd
 import numpy as np
-from load_models import *
+import yaml
+import torch
 from syngem_utils import *
+
+
+
+############################
+
+## Load Gem-Miner Models ##
+
+############################
+
+
+def load_gemini_model(model_name, sparse, seed):
+    from gem_miner_args_helper import gem_miner_parser_args    
+    gem_yaml_txt = open(f'Configs/gemini_{model_name}.yml').read()
+
+    gem_loaded_yaml = yaml.load(gem_yaml_txt, Loader=yaml.FullLoader)
+
+    gem_miner_parser_args.__dict__.update(gem_loaded_yaml)
+    
+    if model_name == "FC":
+        from Models.mlp import FC as gem_fc
+        input_shape, num_classes = (1, 28, 28), 10
+        model = gem_fc(input_shape, num_classes)
+    
+    else:
+        from Models.resnet_kaiming import resnet20 as gem_resnet20
+        model = gem_resnet20()
+
+    model.load_state_dict(torch.load(f"All_Results/{model_name}/{sparse}/gem_{sparse}_{seed}/model_after_finetune.pth", map_location=torch.device('cpu')))
+    model.eval()
+
+    return model
+
+
+
+##########################
+
+## Load Synflow Models ##
+
+##########################
+
+def load_synflow_model(model_name, sparse, seed):
+    from synflow_args_helper import synflow_parser_args
+    syn_yaml_txt = open(f'Configs/synflow_{model_name}.yml').read()
+    
+    syn_loaded_yaml = yaml.load(syn_yaml_txt, Loader=yaml.FullLoader)
+    
+    synflow_parser_args.__dict__.update(syn_loaded_yaml)
+    
+    if model_name == "FC":
+        from Models.mlp import fc as syn_fc
+        input_shape, num_classes = (1, 28, 28), 10
+        model = syn_fc(input_shape, num_classes)
+    
+    else:
+        from Models.lottery_resnet import resnet20 as syn_resnet20
+        D = 20
+        W = 16
+        plan = [(W, D), (2*W, D), (4*W, D)]
+        model = syn_resnet20(plan, 10)
+    
+    model.load_state_dict(torch.load(f"All_Results/{model_name}/{sparse}/syn_{sparse}_{seed}/post-model.pt", map_location=torch.device('cpu')))
+    model.eval()
+
+    return model
+
+
+
+##########################
+
+## Load Random Models ##
+
+##########################
+
+
+def load_random_model(model_name, sparse, seed):
+    from synflow_args_helper import synflow_parser_args
+    syn_yaml_txt = open(f'Configs/synflow_{model_name}.yml').read()
+    
+    syn_loaded_yaml = yaml.load(syn_yaml_txt, Loader=yaml.FullLoader)
+    
+    synflow_parser_args.__dict__.update(syn_loaded_yaml)
+    
+    if model_name == "FC":
+        from Models.mlp import fc as syn_fc
+        input_shape, num_classes = (1, 28, 28), 10
+        model = syn_fc(input_shape, num_classes)
+    
+    else:
+        from Models.lottery_resnet import resnet20 as syn_resnet20
+        D = 20
+        W = 16
+        plan = [(W, D), (2*W, D), (4*W, D)]
+        model = syn_resnet20(plan, 10)
+    
+    model.load_state_dict(torch.load(f"All_Results/{model_name}/{sparse}/rnd_{sparse}_{seed}/post-model.pt", map_location=torch.device('cpu')))
+    model.eval()
+
+    return model
+
+
 
 
 #############################
@@ -21,16 +122,40 @@ def load_gem_acc(model, sparse):
     
     df_div = df_add.div(3)
     
-    df_div = df_div.drop(["epoch", "test_acc_before_rounding", "test_acc","train_acc", "regularization_loss", "model_sparsity"], axis = 1)
+    df_div = df_div.drop(["epoch", "test_acc_before_rounding", "val_acc","train_acc", "regularization_loss", "model_sparsity"], axis = 1)
     
     if model == "FC":
         df_div = df_div.drop(np.arange(0,25,1))
     else:
-        df_div = df_div.drop(np.arange(0,50,1))
+        df_div = df_div.drop(np.arange(0,150,1))
         
     df_div = df_div.reset_index()
     df_div = df_div.drop("index", axis=1)
     return df_div
+
+
+
+###########################
+
+## Load Synflow Accuracy ##
+
+###########################
+
+
+def load_syn_acc(model, sparse):
+    seed_21 = pd.read_pickle(f"All_Results/{model}/{sparse}/syn_{sparse}_21/post-train.pkl")
+    seed_42 = pd.read_pickle(f"All_Results/{model}/{sparse}/syn_{sparse}_42/post-train.pkl")
+    seed_63 = pd.read_pickle(f"All_Results/{model}/{sparse}/syn_{sparse}_63/post-train.pkl")
+    
+    df_add = seed_21.add(seed_42, fill_value=0)
+    df_add = df_add.add(seed_63, fill_value=0)
+    
+    df_div = df_add.div(3)
+    
+    df_div = df_div.drop(["train_loss", "test_loss", "top5_accuracy"], axis = 1)
+    
+    return df_div
+
 
 
 ###########################
@@ -53,525 +178,3 @@ def load_rnd_acc(model, sparse):
     df_div = df_div.drop(["train_loss", "test_loss", "top5_accuracy"], axis = 1)
     
     return df_div
-
-
-
-def load_syn_acc(model, sparse):
-    seed_21 = pd.read_pickle(f"All_Results/{model}/{sparse}/syn_{sparse}_21/post-train.pkl")
-    seed_42 = pd.read_pickle(f"All_Results/{model}/{sparse}/syn_{sparse}_42/post-train.pkl")
-    seed_63 = pd.read_pickle(f"All_Results/{model}/{sparse}/syn_{sparse}_63/post-train.pkl")
-    
-    df_add = seed_21.add(seed_42, fill_value=0)
-    df_add = df_add.add(seed_63, fill_value=0)
-    
-    df_div = df_add.div(3)
-    
-    df_div = df_div.drop(["train_loss", "test_loss", "top5_accuracy"], axis = 1)
-    
-    return df_div
-
-
-
-
-
-
-
-
-def load_fc_rnd_20_acc():
-    seed_21 = pd.read_pickle("All_Results/FC/20/rnd_20_21/post-train-rand-0.695-10.pkl")
-    seed_42 = pd.read_pickle("All_Results/FC/20/rnd_20_42/post-train-rand-0.695-10.pkl")
-    seed_63 = pd.read_pickle("All_Results/FC/20/rnd_20_63/post-train-rand-0.695-10.pkl")
-    
-    df_add = seed_21.add(seed_42, fill_value=0)
-    df_add = df_add.add(seed_63, fill_value=0)
-    
-    df_div = df_add.div(3)
-    
-    df_div = df_div.drop(["train_loss", "test_loss", "top5_accuracy"], axis = 1)
-    
-    return df_div
-
-
-def load_fc_rnd_10_acc():
-    seed_21 = pd.read_pickle("All_Results/FC/10/rnd_10_21/post-train-rand-1-10.pkl")
-    seed_42 = pd.read_pickle("All_Results/FC/10/rnd_10_42/post-train-rand-1-10.pkl")
-    seed_63 = pd.read_pickle("All_Results/FC/10/rnd_10_63/post-train-rand-1-10.pkl")
-    
-    df_add = seed_21.add(seed_42, fill_value=0)
-    df_add = df_add.add(seed_63, fill_value=0)
-    
-    df_div = df_add.div(3)
-    
-    df_div = df_div.drop(["train_loss", "test_loss", "top5_accuracy"], axis = 1)
-    
-    return df_div
-
-
-def load_fc_rnd_5_acc():
-    seed_21 = pd.read_pickle("All_Results/FC/5/rnd_5_21/post-train-rand-1.3-10.pkl")
-    seed_42 = pd.read_pickle("All_Results/FC/5/rnd_5_42/post-train-rand-1.3-10.pkl")
-    seed_63 = pd.read_pickle("All_Results/FC/5/rnd_5_63/post-train-rand-1.3-10.pkl")
-    
-    df_add = seed_21.add(seed_42, fill_value=0)
-    df_add = df_add.add(seed_63, fill_value=0)
-    
-    df_div = df_add.div(3)
-    
-    df_div = df_div.drop(["train_loss", "test_loss", "top5_accuracy"], axis = 1)
-    
-    return df_div
-
-
-def load_fc_rnd_2_acc():
-    seed_21 = pd.read_pickle("All_Results/FC/2/rnd_2_21/post-train-rand-1.7-10.pkl")
-    seed_42 = pd.read_pickle("All_Results/FC/2/rnd_2_42/post-train-rand-1.7-10.pkl")
-    seed_63 = pd.read_pickle("All_Results/FC/2/rnd_2_63/post-train-rand-1.7-10.pkl")
-    
-    df_add = seed_21.add(seed_42, fill_value=0)
-    df_add = df_add.add(seed_63, fill_value=0)
-    
-    df_div = df_add.div(3)
-    
-    df_div = df_div.drop(["train_loss", "test_loss", "top5_accuracy"], axis = 1)
-    
-    return df_div
-
-
-
-
-
-#############################
-
-## Load Synflow Accuracy ##
-
-#############################
-
-
-def load_fc_syn_50_acc():
-    seed_21 = pd.read_pickle("All_Results/FC/50/syn_50_21/post-train-synflow-0.3-10.pkl")
-    seed_42 = pd.read_pickle("All_Results/FC/50/syn_50_42/post-train-synflow-0.3-10.pkl")
-    seed_63 = pd.read_pickle("All_Results/FC/50/syn_50_63/post-train-synflow-0.3-10.pkl")
-    
-    df_add = seed_21.add(seed_42, fill_value=0)
-    df_add = df_add.add(seed_63, fill_value=0)
-    
-    df_div = df_add.div(3)
-    
-    df_div = df_div.drop(["train_loss", "test_loss", "top5_accuracy"], axis = 1)
-    
-    return df_div
-
-
-
-def load_resnet20_syn_50_acc():
-    seed_21 = pd.read_pickle("All_Results/Resnet20/50/syn_50_21/post-train-synflow-0.31-10.pkl")
-    seed_42 = pd.read_pickle("All_Results/Resnet20/50/syn_50_42/post-train-synflow-0.31-10.pkl")
-    seed_63 = pd.read_pickle("All_Results/Resnet20/50/syn_50_63/post-train-synflow-0.31-10.pkl")
-    
-    df_add = seed_21.add(seed_42, fill_value=0)
-    df_add = df_add.add(seed_63, fill_value=0)
-    
-    df_div = df_add.div(3)
-    
-    df_div = df_div.drop(["train_loss", "test_loss", "top5_accuracy"], axis = 1)
-    
-    return df_div
-
-
-def load_fc_syn_20_acc():
-    seed_21 = pd.read_pickle("All_Results/FC/20/syn_20_21/post-train-synflow-0.695-10.pkl")
-    seed_42 = pd.read_pickle("All_Results/FC/20/syn_20_42/post-train-synflow-0.695-10.pkl")
-    seed_63 = pd.read_pickle("All_Results/FC/20/syn_20_63/post-train-synflow-0.695-10.pkl")
-    
-    df_add = seed_21.add(seed_42, fill_value=0)
-    df_add = df_add.add(seed_63, fill_value=0)
-    
-    df_div = df_add.div(3)
-    
-    df_div = df_div.drop(["train_loss", "test_loss", "top5_accuracy"], axis = 1)
-    
-    return df_div
-
-
-def load_fc_syn_10_acc():
-    seed_21 = pd.read_pickle("All_Results/FC/10/syn_10_21/post-train-synflow-1-10.pkl")
-    seed_42 = pd.read_pickle("All_Results/FC/10/syn_10_42/post-train-synflow-1-10.pkl")
-    seed_63 = pd.read_pickle("All_Results/FC/10/syn_10_63/post-train-synflow-1-10.pkl")
-    
-    df_add = seed_21.add(seed_42, fill_value=0)
-    df_add = df_add.add(seed_63, fill_value=0)
-    
-    df_div = df_add.div(3)
-    
-    df_div = df_div.drop(["train_loss", "test_loss", "top5_accuracy"], axis = 1)
-    
-    return df_div
-
-
-def load_fc_syn_5_acc():
-    seed_21 = pd.read_pickle("All_Results/FC/5/syn_5_21/post-train-synflow-1.3-10.pkl")
-    seed_42 = pd.read_pickle("All_Results/FC/5/syn_5_42/post-train-synflow-1.3-10.pkl")
-    seed_63 = pd.read_pickle("All_Results/FC/5/syn_5_63/post-train-synflow-1.3-10.pkl")
-    
-    df_add = seed_21.add(seed_42, fill_value=0)
-    df_add = df_add.add(seed_63, fill_value=0)
-    
-    df_div = df_add.div(3)
-    
-    df_div = df_div.drop(["train_loss", "test_loss", "top5_accuracy"], axis = 1)
-    
-    return df_div
-
-
-def load_fc_syn_2_acc():
-    seed_21 = pd.read_pickle("All_Results/FC/2/syn_2_21/post-train-synflow-1.7-10.pkl")
-    seed_42 = pd.read_pickle("All_Results/FC/2/syn_2_42/post-train-synflow-1.7-10.pkl")
-    seed_63 = pd.read_pickle("All_Results/FC/2/syn_2_63/post-train-synflow-1.7-10.pkl")
-    
-    df_add = seed_21.add(seed_42, fill_value=0)
-    df_add = df_add.add(seed_63, fill_value=0)
-    
-    df_div = df_add.div(3)
-    
-    df_div = df_div.drop(["train_loss", "test_loss", "top5_accuracy"], axis = 1)
-    
-    return df_div
-
-
-
-######################################
-
-## Load Gem-Miner First Layer Units ##
-
-######################################
-
-
-def load_gem_50_first_layer_units():
-    gem_model_50_21 = load_gemini_fc_50_sparsity_seed_21()
-    gem_model_50_42 = load_gemini_fc_50_sparsity_seed_42()
-    gem_model_50_63 = load_gemini_fc_50_sparsity_seed_63()
-
-    gem_fil_50_21 = get_filters(gem_model_50_21)
-    gem_fil_50_42 = get_filters(gem_model_50_42)
-    gem_fil_50_63 = get_filters(gem_model_50_63)
-
-    all_models = [gem_fil_50_21[0] , gem_fil_50_42[0], gem_fil_50_63[0]]
-    all_units = []
-
-    for model in all_models:
-        model_units = 0
-        for unit in model:
-            model_units += unit
-        all_units.append(model_units)
-        
-    return all_units
-
-
-def load_gem_20_first_layer_units():
-    gem_model_20_21 = load_gemini_fc_20_sparsity_seed_21()
-    gem_model_20_42 = load_gemini_fc_20_sparsity_seed_42()
-    gem_model_20_63 = load_gemini_fc_20_sparsity_seed_63()
-
-    gem_fil_20_21 = get_filters(gem_model_20_21)
-    gem_fil_20_42 = get_filters(gem_model_20_42)
-    gem_fil_20_63 = get_filters(gem_model_20_63)
-
-    all_models = [gem_fil_20_21[0] , gem_fil_20_42[0], gem_fil_20_63[0]]
-    all_units = []
-
-    for model in all_models:
-        model_units = 0
-        for unit in model:
-            model_units += unit
-        all_units.append(model_units)
-        
-    return all_units
-
-
-def load_gem_10_first_layer_units():
-    gem_model_10_21 = load_gemini_fc_10_sparsity_seed_21()
-    gem_model_10_42 = load_gemini_fc_10_sparsity_seed_42()
-    gem_model_10_63 = load_gemini_fc_10_sparsity_seed_63()
-
-    gem_fil_10_21 = get_filters(gem_model_10_21)
-    gem_fil_10_42 = get_filters(gem_model_10_42)
-    gem_fil_10_63 = get_filters(gem_model_10_63)
-
-    all_models = [gem_fil_10_21[0] , gem_fil_10_42[0], gem_fil_10_63[0]]
-    all_units = []
-
-    for model in all_models:
-        model_units = 0
-        for unit in model:
-            model_units += unit
-        all_units.append(model_units)
-        
-    return all_units
-
-
-def load_gem_5_first_layer_units():
-    gem_model_5_21 = load_gemini_fc_5_sparsity_seed_21()
-    gem_model_5_42 = load_gemini_fc_5_sparsity_seed_42()
-    gem_model_5_63 = load_gemini_fc_5_sparsity_seed_63()
-
-    gem_fil_5_21 = get_filters(gem_model_5_21)
-    gem_fil_5_42 = get_filters(gem_model_5_42)
-    gem_fil_5_63 = get_filters(gem_model_5_63)
-
-    all_models = [gem_fil_5_21[0] , gem_fil_5_42[0], gem_fil_5_63[0]]
-    all_units = []
-
-    for model in all_models:
-        model_units = 0
-        for unit in model:
-            model_units += unit
-        all_units.append(model_units)
-        
-    return all_units
-
-
-def load_gem_2_first_layer_units():
-    gem_model_2_21 = load_gemini_fc_2_sparsity_seed_21()
-    gem_model_2_42 = load_gemini_fc_2_sparsity_seed_42()
-    gem_model_2_63 = load_gemini_fc_2_sparsity_seed_63()
-
-    gem_fil_2_21 = get_filters(gem_model_2_21)
-    gem_fil_2_42 = get_filters(gem_model_2_42)
-    gem_fil_2_63 = get_filters(gem_model_2_63)
-
-    all_models = [gem_fil_2_21[0] , gem_fil_2_42[0], gem_fil_2_63[0]]
-    all_units = []
-
-    for model in all_models:
-        model_units = 0
-        for unit in model:
-            model_units += unit
-        all_units.append(model_units)
-        
-    return all_units
-
-
-
-#####################################
-
-## Load Synflow First Layer Units ##
-
-#####################################
-
-def load_syn_50_first_layer_units():
-    syn_model_50_21 = load_synflow_fc_sparsity_50_seed_21()
-    syn_model_50_42 = load_synflow_fc_sparsity_50_seed_42()
-    syn_model_50_63 = load_synflow_fc_sparsity_50_seed_63()
-
-    syn_fil_50_21 = get_filters(syn_model_50_21)
-    syn_fil_50_42 = get_filters(syn_model_50_42)
-    syn_fil_50_63 = get_filters(syn_model_50_63)
-
-    all_models = [syn_fil_50_21[0] , syn_fil_50_42[0], syn_fil_50_63[0]]
-    all_units = []
-
-    for model in all_models:
-        model_units = 0
-        for unit in model:
-            model_units += unit
-        all_units.append(model_units)
-        
-    return all_units
-
-
-def load_syn_20_first_layer_units():
-    syn_model_20_21 = load_synflow_fc_sparsity_20_seed_21()
-    syn_model_20_42 = load_synflow_fc_sparsity_20_seed_42()
-    syn_model_20_63 = load_synflow_fc_sparsity_20_seed_63()
-
-    syn_fil_20_21 = get_filters(syn_model_20_21)
-    syn_fil_20_42 = get_filters(syn_model_20_42)
-    syn_fil_20_63 = get_filters(syn_model_20_63)
-
-    all_models = [syn_fil_20_21[0] , syn_fil_20_42[0], syn_fil_20_63[0]]
-    all_units = []
-
-    for model in all_models:
-        model_units = 0
-        for unit in model:
-            model_units += unit
-        all_units.append(model_units)
-        
-    return all_units
-
-
-def load_syn_10_first_layer_units():
-    syn_model_10_21 = load_synflow_fc_sparsity_10_seed_21()
-    syn_model_10_42 = load_synflow_fc_sparsity_10_seed_42()
-    syn_model_10_63 = load_synflow_fc_sparsity_10_seed_63()
-
-    syn_fil_10_21 = get_filters(syn_model_10_21)
-    syn_fil_10_42 = get_filters(syn_model_10_42)
-    syn_fil_10_63 = get_filters(syn_model_10_63)
-
-    all_models = [syn_fil_10_21[0] , syn_fil_10_42[0], syn_fil_10_63[0]]
-    all_units = []
-
-    for model in all_models:
-        model_units = 0
-        for unit in model:
-            model_units += unit
-        all_units.append(model_units)
-        
-    return all_units
-
-
-def load_syn_5_first_layer_units():
-    syn_model_5_21 = load_synflow_fc_sparsity_5_seed_21()
-    syn_model_5_42 = load_synflow_fc_sparsity_5_seed_42()
-    syn_model_5_63 = load_synflow_fc_sparsity_5_seed_63()
-
-    syn_fil_5_21 = get_filters(syn_model_5_21)
-    syn_fil_5_42 = get_filters(syn_model_5_42)
-    syn_fil_5_63 = get_filters(syn_model_5_63)
-
-    all_models = [syn_fil_5_21[0] , syn_fil_5_42[0], syn_fil_5_63[0]]
-    all_units = []
-
-    for model in all_models:
-        model_units = 0
-        for unit in model:
-            model_units += unit
-        all_units.append(model_units)
-        
-    return all_units
-
-
-def load_syn_2_first_layer_units():
-    syn_model_2_21 = load_synflow_fc_sparsity_2_seed_21()
-    syn_model_2_42 = load_synflow_fc_sparsity_2_seed_42()
-    syn_model_2_63 = load_synflow_fc_sparsity_2_seed_63()
-
-
-    syn_fil_2_21 = get_filters(syn_model_2_21)
-    syn_fil_2_42 = get_filters(syn_model_2_42)
-    syn_fil_2_63 = get_filters(syn_model_2_63)
-
-
-
-    all_models = [syn_fil_2_21[0] , syn_fil_2_42[0], syn_fil_2_63[0]]
-    all_units = []
-
-    for model in all_models:
-        model_units = 0
-        for unit in model:
-            model_units += unit
-        all_units.append(model_units)
-        
-    return all_units
-
-
-##################################
-
-## Load RandomFirst Layer Units ##
-
-##################################
-
-def load_rnd_50_first_layer_units():
-    rnd_model_50_21 = load_random_fc_sparsity_50_seed_21()
-    rnd_model_50_42 = load_random_fc_sparsity_50_seed_42()
-    rnd_model_50_63 = load_random_fc_sparsity_50_seed_63()
-
-    rnd_fil_50_21 = get_filters(rnd_model_50_21)
-    rnd_fil_50_42 = get_filters(rnd_model_50_42)
-    rnd_fil_50_63 = get_filters(rnd_model_50_63)
-
-    all_models = [rnd_fil_50_21[0] , rnd_fil_50_42[0], rnd_fil_50_63[0]]
-    all_units = []
-
-    for model in all_models:
-        model_units = 0
-        for unit in model:
-            model_units += unit
-        all_units.append(model_units)
-        
-    return all_units
-
-
-def load_rnd_20_first_layer_units():
-    rnd_model_20_21 = load_random_fc_sparsity_20_seed_21()
-    rnd_model_20_42 = load_random_fc_sparsity_20_seed_42()
-    rnd_model_20_63 = load_random_fc_sparsity_20_seed_63()
-
-    rnd_fil_20_21 = get_filters(rnd_model_20_21)
-    rnd_fil_20_42 = get_filters(rnd_model_20_42)
-    rnd_fil_20_63 = get_filters(rnd_model_20_63)
-
-    all_models = [rnd_fil_20_21[0] , rnd_fil_20_42[0], rnd_fil_20_63[0]]
-    all_units = []
-
-    for model in all_models:
-        model_units = 0
-        for unit in model:
-            model_units += unit
-        all_units.append(model_units)
-        
-    return all_units
-
-
-def load_rnd_10_first_layer_units():
-    rnd_model_10_21 = load_random_fc_sparsity_10_seed_21()
-    rnd_model_10_42 = load_random_fc_sparsity_10_seed_42()
-    rnd_model_10_63 = load_random_fc_sparsity_10_seed_63()
-
-    rnd_fil_10_21 = get_filters(rnd_model_10_21)
-    rnd_fil_10_42 = get_filters(rnd_model_10_42)
-    rnd_fil_10_63 = get_filters(rnd_model_10_63)
-
-    all_models = [rnd_fil_10_21[0] , rnd_fil_10_42[0], rnd_fil_10_63[0]]
-    all_units = []
-
-    for model in all_models:
-        model_units = 0
-        for unit in model:
-            model_units += unit
-        all_units.append(model_units)
-        
-    return all_units
-
-
-def load_rnd_5_first_layer_units():
-    rnd_model_5_21 = load_random_fc_sparsity_5_seed_21()
-    rnd_model_5_42 = load_random_fc_sparsity_5_seed_42()
-    rnd_model_5_63 = load_random_fc_sparsity_5_seed_63()
-
-    rnd_fil_5_21 = get_filters(rnd_model_5_21)
-    rnd_fil_5_42 = get_filters(rnd_model_5_42)
-    rnd_fil_5_63 = get_filters(rnd_model_5_63)
-
-    all_models = [rnd_fil_5_21[0] , rnd_fil_5_42[0], rnd_fil_5_63[0]]
-    all_units = []
-
-    for model in all_models:
-        model_units = 0
-        for unit in model:
-            model_units += unit
-        all_units.append(model_units)
-        
-    return all_units
-
-
-def load_rnd_2_first_layer_units():
-    rnd_model_2_21 = load_random_fc_sparsity_2_seed_21()
-    rnd_model_2_42 = load_random_fc_sparsity_2_seed_42()
-    rnd_model_2_63 = load_random_fc_sparsity_2_seed_63()
-
-    rnd_fil_2_21 = get_filters(rnd_model_2_21)
-    rnd_fil_2_42 = get_filters(rnd_model_2_42)
-    rnd_fil_2_63 = get_filters(rnd_model_2_63)
-
-    all_models = [rnd_fil_2_21[0] , rnd_fil_2_42[0], rnd_fil_2_63[0]]
-    all_units = []
-
-    for model in all_models:
-        model_units = 0
-        for unit in model:
-            model_units += unit
-        all_units.append(model_units)
-        
-    return all_units
