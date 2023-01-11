@@ -1,4 +1,5 @@
 {
+    "batch_size": 128,
     "compression": 0.0,
     "compression_list": [
         1.7
@@ -14,15 +15,18 @@
     "level_list": [
         10
     ],
-    "lr": 0.001,
-    "lr_drop_rate": 0.1,
-    "lr_drops": [],
+    "lr": 0.01,
+    "lr_drop_rate": 0.2,
+    "lr_drops": [
+        60,
+        120
+    ],
     "mask_scope": "global",
     "model": "resnet20",
     "model_class": "lottery",
     "no_cuda": false,
-    "optimizer": "sgd",
-    "post_epochs": 50,
+    "optimizer": "momentum",
+    "post_epochs": 160,
     "pre_epochs": 0,
     "pretrained": false,
     "prune_batch_size": 256,
@@ -30,7 +34,7 @@
     "prune_bias": false,
     "prune_dataset_ratio": 10,
     "prune_epoch_list": [],
-    "prune_epochs": 50,
+    "prune_epochs": 100,
     "prune_residual": false,
     "prune_train_mode": false,
     "pruner": "synflow",
@@ -43,6 +47,6 @@
     "test_batch_size": 256,
     "train_batch_size": 64,
     "verbose": true,
-    "weight_decay": 0.0,
+    "weight_decay": 0.0005,
     "workers": 1
 }
