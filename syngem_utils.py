@@ -1069,4 +1069,90 @@ def plot_units(units, model, sparse):
         ax.tick_params(bottom=False, labelbottom=False, left=False, labelleft=False)
         fig.show()
         count += 1
+
+
+
+"""
+def get_weight_distance(unit):
+    
+    weight_idxs = np.argwhere(unit)
+    
+    weight_dist = 0
+    for idx in range(len(weight_idxs)):
+        try:
+            weight_dist += (weight_idxs[idx] - weight_idxs[idx + 1])
+        except:
+            return abs(int(weight_dist / len(weight_idxs)) - 1)
+    return np.nan
+"""
+def get_weight_distance(unit):
+    
+    weight_idxs = np.argwhere(unit)
+    
+    weight_dist = 0
+    for idx in range(len(weight_idxs)):
+        if len(weight_idxs) == 1:
+            return 0
+        try:
+            weight_dist += abs(weight_idxs[idx] - weight_idxs[idx + 1])
+        except:
+            return int(weight_dist / (len(weight_idxs) - 1))
+    return np.nan
+
+
+
+
+def get_model_weight_distances(model):
+    distances_model = []
+    for layer in model:
+        distances_layer = []
+        for unit in layer:
+            dist = get_weight_distance(unit)
+            distances_layer.append(dist)
+        distances_model.append(distances_layer)
+    
+    return distances_model
+
+
+
+def get_weight_positions(model):
+    
+    positions_model = []
+    for layer in model:
+        positions_layer = []
+        for unit in layer:
+            weight_idxs = np.argwhere(unit.flatten())
+            positions_layer = np.concatenate((positions_layer, weight_idxs.flatten()))
+        
+        positions_model.append(positions_layer)   
+    
+    return positions_model
+
+
+def count_clusters(model):
+     
+    clusters_model = []
+    for layer in model:
+        clusters_layer = []
+        for unit in layer:
+            clusters_unit = []
+            weight_idxs = np.argwhere(unit.flatten())
+            count = 0
+            for i in range(len(weight_idxs)):
+                try:
+                    if int(weight_idxs[i] + 1) == int(weight_idxs[i + 1]):
+                        clusters_unit.append(count)
+                    else:
+                        count += 1
+                        clusters_unit.append(count)
+                        
+                except:
+                    pass
+                        
+            clusters = len(np.unique(np.array(clusters_unit)))
+            clusters_layer.append(clusters)
+        
+        clusters_model.append(clusters_layer)   
+    
+    return clusters_model
         

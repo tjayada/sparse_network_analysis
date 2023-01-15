@@ -178,3 +178,89 @@ def load_rnd_acc(model, sparse):
     df_div = df_div.drop(["train_loss", "test_loss", "top5_accuracy"], axis = 1)
     
     return df_div
+
+
+
+
+######################################
+
+## Load Gem-Miner First Layer Units ##
+
+######################################
+
+
+def load_gem_first_layer_units(sparse):
+    gem_model_50_21 = load_gemini_model("FC", sparse, 21)
+    gem_model_50_42 = load_gemini_model("FC", sparse, 42)
+    gem_model_50_63 = load_gemini_model("FC", sparse, 63)
+
+    gem_fil_50_21 = get_filters(gem_model_50_21)
+    gem_fil_50_42 = get_filters(gem_model_50_42)
+    gem_fil_50_63 = get_filters(gem_model_50_63)
+
+    all_models = [gem_fil_50_21[0] , gem_fil_50_42[0], gem_fil_50_63[0]]
+    all_units = []
+
+    for model in all_models:
+        model_units = 0
+        for unit in model:
+            model_units += unit
+        all_units.append(model_units)
+        
+    return all_units
+
+
+
+#####################################
+
+## Load Synflow First Layer Units ##
+
+#####################################
+
+def load_syn_first_layer_units(sparse):
+    syn_model_50_21 = load_synflow_model("FC", sparse, 21)
+    syn_model_50_42 = load_synflow_model("FC", sparse, 42)
+    syn_model_50_63 = load_synflow_model("FC", sparse, 63)
+
+    syn_fil_50_21 = get_filters(syn_model_50_21)
+    syn_fil_50_42 = get_filters(syn_model_50_42)
+    syn_fil_50_63 = get_filters(syn_model_50_63)
+
+    all_models = [syn_fil_50_21[0] , syn_fil_50_42[0], syn_fil_50_63[0]]
+    all_units = []
+
+    for model in all_models:
+        model_units = 0
+        for unit in model:
+            model_units += unit
+        all_units.append(model_units)
+        
+    return all_units
+
+
+
+##################################
+
+## Load RandomFirst Layer Units ##
+
+##################################
+
+def load_rnd_first_layer_units(sparse):
+    rnd_model_50_21 = load_random_model("FC", sparse, 21)
+    rnd_model_50_42 = load_random_model("FC", sparse, 21)
+    rnd_model_50_63 = load_random_model("FC", sparse, 21)
+
+    rnd_fil_50_21 = get_filters(rnd_model_50_21)
+    rnd_fil_50_42 = get_filters(rnd_model_50_42)
+    rnd_fil_50_63 = get_filters(rnd_model_50_63)
+
+    all_models = [rnd_fil_50_21[0] , rnd_fil_50_42[0], rnd_fil_50_63[0]]
+    all_units = []
+
+    for model in all_models:
+        model_units = 0
+        for unit in model:
+            model_units += unit
+        all_units.append(model_units)
+        
+    return all_units
