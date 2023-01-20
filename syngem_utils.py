@@ -1155,4 +1155,82 @@ def count_clusters(model):
         clusters_model.append(clusters_layer)   
     
     return clusters_model
+
+
+
+def graph_score_kernel(kernel, cluster_size, distance):
+    gg = nx.Graph()
+    
+    idx_kernel = np.argwhere(kernel)
+    size = idx_kernel.shape[0]
+    
+    if idx_kernel.shape[1] == 1:
+        for ii in range(size):
+            for jj in range(size):
+                if abs(idx_kernel[ii] - idx_kernel[jj]) <= 1:
+                    gg.add_edge(ii, jj)
+    
+    
+    else:
+        for ii in range(size):
+                for jj in range(size):
+                    
+                    if distance == "manhattan":
+                        if (abs(idx_kernel[ii][0] - idx_kernel[jj][0]) + abs(idx_kernel[ii][1] - idx_kernel[jj][1])) <= 1:
+                            gg.add_edge(ii, jj)
+                    
+                    elif distance == "euclidean":
+                        if np.sqrt((idx_kernel[ii][0] - idx_kernel[jj][0]) ** 2 + (idx_kernel[ii][1] - idx_kernel[jj][1]) ** 2) <= np.sqrt(2):
+                            gg.add_edge(ii, jj)
+    
+    if len(idx_kernel) == len(list(nx.connected_components(gg))):
+        return 0
+    
+    elif len(list(nx.connected_components(gg))) == 1:
+        return 1
+    
+    
+    else:
+        big_clust = 0
+        small_clust = 0
+        for cluster in nx.connected_components(gg):
+            if len(cluster) > cluster_size:
+                big_clust += 1
+            else:
+                small_clust += 1
+        
+        if big_clust == 0:
+            return 0
+        elif small_clust == 0:
+            return 1
+    
+        return np.round(big_clust / (small_clust + big_clust), 2)
+    
+
+def graph_score_model(model, dense = False, cluster_size = 1, distance = "manhattan"):
+    
+    if dense in ["all", "last"]:
+        dense = True
+    
+    model_scores = []
+    count = 0
+    for idx, layer in enumerate(model):
+        
+        filters_scores = []
+        if idx == (len(model) - 1) and dense:
+            for unit in layer:
+                scores = []
+                scores.append(graph_score_kernel(unit, cluster_size, distance))
+                filters_scores.append(np.mean(scores))
+            
+        else:
+            for filters in layer:
+                scores = []
+                for kernel in filters:
+                    scores.append(graph_score_kernel(kernel, cluster_size, distance))
+
+                filters_scores.append(np.mean(scores))
+        model_scores.append(np.round(filters_scores, 2))
+    
+    return model_scores
         
