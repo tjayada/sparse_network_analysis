@@ -759,7 +759,7 @@ def get_correlation(activations_model_1, activations_model_2 = None):
                 cor_i_j = ((activations_model_1[layer][i] - activations_model_1[layer][i].mean()) * (activations_model_2[layer][j] - activations_model_2[layer][j].mean())).mean() / (activations_model_1[layer][i].std() * activations_model_2[layer][j].std())
 
                 
-                if np.isnan(cor_i_j):
+                if np.isnan(cor_i_j) or np.isinf(cor_i_j):
                     cor_i_j = 0
 
                 layer_cors[i][j] = cor_i_j
