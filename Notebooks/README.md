@@ -1,0 +1,2 @@
+# Notebooks
+This directory contains the analysis notebooks for each model architecture, which then are further split into each sparsity investigated. The feature\_maps\_&\_conv_kernels notebook contains analysis of both FC and Conv features.
