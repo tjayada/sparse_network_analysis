@@ -1128,7 +1128,7 @@ def get_weight_positions(model):
     
     return positions_model
 
-
+"""
 def count_clusters(model):
      
     clusters_model = []
@@ -1155,6 +1155,119 @@ def count_clusters(model):
         clusters_model.append(clusters_layer)   
     
     return clusters_model
+
+"""
+
+"""
+def count_clusters(model):
+     
+    clusters_model = []
+    clusters_size_model = []
+    for layer in model:
+        clusters_layer = []
+        clusters_size_layer = []
+        for unit in layer:
+            clusters_unit = []
+            weight_idxs = np.argwhere(unit.flatten())
+            count = 0
+            for i in range(len(weight_idxs)):
+                try:
+                    if int(weight_idxs[i] + 1) == int(weight_idxs[i + 1]):
+                        clusters_unit.append(count)
+                    else:
+                        count += 1
+                        clusters_unit.append(count)
+                        
+                except:
+                    pass
+                        
+            clusters, counts = np.unique(np.array(clusters_unit), return_counts=True)
+            
+            clusters_layer.append(len(clusters))
+            if counts != []:
+                clusters_size_layer.append(np.round(np.mean(counts)))
+            
+        
+        clusters_model.append(clusters_layer)   
+        clusters_size_model.append(clusters_size_layer)   
+    
+    return clusters_model, clusters_size_model
+
+"""
+
+def count_clusters(model):
+     
+    clusters_model = []
+    clusters_size_model = []
+    clusters_sign_model = []
+    
+    
+    for layer in model:
+        clusters_layer = []
+        clusters_size_layer = []
+        clusters_sign_layer = []
+        
+        for unit in layer:
+            clusters_unit = []
+            sign_cluster = []
+            seen_sign = []
+            
+            weight_idxs = np.argwhere(unit.flatten())
+            count = 0
+            for i in range(len(weight_idxs)):
+                try:
+                    if int(weight_idxs[i] + 1) == int(weight_idxs[i + 1]):
+                        clusters_unit.append(count)
+                        
+                        if weight_idxs[i] not in seen_sign:
+                            if unit[weight_idxs[i]] > 0:
+                                sign_cluster.append(1)
+                            else:
+                                sign_cluster.append(0)
+                            
+                            seen_sign.append(weight_idxs[i])
+                        
+                        if weight_idxs[i + 1] not in seen_sign:
+                            if unit[weight_idxs[i + 1]] > 0:
+                                sign_cluster.append(1)
+                            else:
+                                sign_cluster.append(0)
+                            seen_sign.append(weight_idxs[i + 1])
+                        
+                        
+                    else:
+                        count += 1
+                        clusters_unit.append(count)
+                        if sign_cluster != []:
+                            positive_idx = np.argwhere(sign_cluster)
+                            if len(positive_idx) == 0:
+                                clusters_sign_layer.append(0)
+                            else:   
+                                clusters_sign_layer.append(len(positive_idx) / len(sign_cluster))
+                            sign_cluster = []
+                        
+                except:
+                    pass
+                        
+            clusters, counts = np.unique(np.array(clusters_unit), return_counts=True)
+            
+            clusters_layer.append(len(clusters))
+            
+            if counts != []:
+                clusters_size_layer.append(np.round(np.mean(counts)))
+            
+        
+        if clusters_sign_layer == []:
+            clusters_sign_layer.append(0)
+
+
+        clusters_model.append(clusters_layer)   
+        clusters_size_model.append(clusters_size_layer)
+        clusters_sign_model.append(clusters_sign_layer)
+    
+    return clusters_model, clusters_size_model, clusters_sign_model
+
+
 
 
 
@@ -1233,4 +1346,50 @@ def graph_score_model(model, dense = False, cluster_size = 1, distance = "manhat
         model_scores.append(np.round(filters_scores, 2))
     
     return model_scores
+
+
+
+def show_common_kernels(model, number_of_tops, display, model_name):
+    
+    # put all kernels in single list
+    final_mat = []
+
+    for i in range(len(model)-1):    
+        for j in range(len(model[i])):
+            fil = model[i][j].copy()
+            fil = np.where(fil != 0, 1, 0)
+
+            for unit in fil:
+                final_mat.append(unit.flatten())
+    
+    values, counts = np.unique(final_mat, axis=0, return_counts=True)
+    
+    top_kernels = []
+    count = 0
+    while count < number_of_tops:
+        idx = np.argwhere(counts == np.flip(np.sort(counts))[count])
+        for i in idx:
+            top_kernels.append((values[i], np.flip(np.sort(counts))[count]))
+            count += 1
+    
+    fig, axs = plt.subplots(nrows=display[0], ncols=display[1], figsize=(18,4))
+    count = 0
+    for ax in axs.flat:
+        
+        values, counts = top_kernels[count]
+        
+        ax.imshow(values.reshape(3,3))
+    
+        ax.set_title(counts)
+        ax.tick_params(bottom=False, labelbottom=False, left=False, labelleft=False)
+    
+        count += 1
+
+    fig.suptitle(f"{model_name}", size=16)
+    plt.show()
+    print(" ")
+    print(" ")
+    print(" ")
+    
+    
         
