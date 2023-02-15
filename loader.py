@@ -45,10 +45,14 @@ def load_gemini_model(model_name, sparse, seed):
 
 def load_synflow_model(model_name, sparse, seed):
     from synflow_args_helper import synflow_parser_args
-    syn_yaml_txt = open(f'Configs/synflow_{model_name}.yml').read()
+    
+    if model_name == "FC":
+        syn_yaml_txt = open(f'Configs/synflow_{model_name}.yml').read()
+    else:
+
+        syn_yaml_txt = open(f'Configs/multi_synflow_{model_name}.yml').read()
     
     syn_loaded_yaml = yaml.load(syn_yaml_txt, Loader=yaml.FullLoader)
-    
     synflow_parser_args.__dict__.update(syn_loaded_yaml)
     
     if model_name == "FC":
@@ -79,7 +83,11 @@ def load_synflow_model(model_name, sparse, seed):
 
 def load_random_model(model_name, sparse, seed):
     from synflow_args_helper import synflow_parser_args
-    syn_yaml_txt = open(f'Configs/synflow_{model_name}.yml').read()
+
+    if model_name == "FC":
+        syn_yaml_txt = open(f'Configs/synflow_{model_name}.yml').read()
+    else:
+        syn_yaml_txt = open(f'Configs/multi_synflow_{model_name}.yml').read()
     
     syn_loaded_yaml = yaml.load(syn_yaml_txt, Loader=yaml.FullLoader)
     

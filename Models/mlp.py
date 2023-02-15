@@ -9,7 +9,7 @@ from gem_miner_args_helper import gem_miner_parser_args
 
 from Utils.builder import Builder
 
-
+# definition of SynFlow FC
 def fc(input_shape, num_classes, dense_classifier=False, pretrained=False, L=6, N=100, nonlinearity=nn.ReLU()):
   size = np.prod(input_shape)
   
@@ -34,8 +34,43 @@ def fc(input_shape, num_classes, dense_classifier=False, pretrained=False, L=6, 
   
   return model
 
+# definition of Random FC with good structure
+# sparse arg is the amount of remaining weights 
+def rnd_fc(input_shape, num_classes, dense_classifier=False, pretrained=False, L=6, N=100, nonlinearity=nn.ReLU()):
+  size = np.prod(input_shape)
+  
+  # Linear feature extractor
+  modules = [nn.Flatten()]
+  modules.append(layers.rnd_Linear(size, N, sparse=600))
+  modules.append(nonlinearity)
+  
+  #for i in range(L-2):
+  modules.append(layers.rnd_Linear(N,N, sparse=400))
+  modules.append(nonlinearity)
 
+  modules.append(layers.rnd_Linear(N,N, sparse=400))
+  modules.append(nonlinearity)
 
+  modules.append(layers.rnd_Linear(N,N, sparse=400))
+  modules.append(nonlinearity)
+
+  modules.append(layers.rnd_Linear(N,N, sparse=400))
+  modules.append(nonlinearity)
+
+  # Linear classifier
+  if dense_classifier:
+      modules.append(nn.Linear(N, num_classes, bias=False))
+  else:
+      modules.append(layers.rnd_Linear(N, num_classes, bias=False, sparse=200))
+  model = nn.Sequential(*modules)
+
+  # Pretrained model
+  if pretrained:
+      print("WARNING: this model does not have pretrained weights.")
+  
+  return model
+
+# Gem-Miner FC Model
 class FC(nn.Module):
     def __init__(self, input_shape, num_classes, L=6, N=100, nonlinearity=nn.ReLU()):
         super(FC, self).__init__()
