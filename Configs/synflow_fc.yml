@@ -4,63 +4,31 @@ experiment: synflow
 # Architecture
 model: fc
 model_class: default
-seed: 21
+seed: 21 # 42 # 63
 
 # ===== Dataset ===== #
 dataset: mnist
-#name: resnet20_cifar10_wt
 
 # ===== Learning Rate Policy ======== #
-optimizer: sgd #adam #sgd #adam
-lr: 0.1 # 0.005
-#lr_policy: multistep_lr #cosine_lr
+optimizer: sgd
+lr: 0.1
 
 # ===== Network training config ===== #
 post_epochs: 25
-#prune_epochs: 10
 level_list: [10]
-compression_list: [1.7]
-#wd: 0.0001 # 0
-#momentum: 0.9
-#batch_size: 128
-#bias: True 
+compression_list: [1.7] #[1.3] [1] [0.695] [0.3] --> [2%] [5%] [10%] [20%] [50%] sparsities
 
 # ===== Sparsity =========== #
-pruner: rand
-#compression: 0.5
-#conv_type: SubnetConv
-#bn_type: NonAffineBatchNorm
-#freeze_weights: False
-#weight_training: True
-#prune_rate: 0.0
-#init: signed_constant
-#score_init: unif  #bern #unif #half #bimodal #skew # bern
-#scale_fan: True
-
-
-# ===== Rounding ===== #
-#round: naive 
-#noise: True
-#noise_ratio: 0 
-
+pruner: synflow  #rand
 
 # ===== Regularization ===== #
-#regularization: var_red_2 # var_red_2
-lmbda: 0 # 0.01 #0.0001 #0.000001
-
+lmbda: 0 
 
 # ===== Results ===== #
-#result_dir: synflow_results
-expid: random_fc_mnist_seed_21_epochs_25_compr_1.7
-
+expid: fc_mnist_seed_21_epochs_25_compr_1.7
 
 # ===== Hardware setup ===== #
 workers: 1
-#gpu: 0
-
-#reinitialize: True
-#shuffle: True
-#invert: True 
-
+gpu: 0
 
 verbose: True

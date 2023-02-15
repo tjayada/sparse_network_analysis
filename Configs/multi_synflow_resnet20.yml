@@ -1,0 +1,38 @@
+# Experiment
+experiment: synflow
+#verbose: True 
+
+# Architecture
+model: resnet20
+model_class: lottery
+seed: 21 # 42 # 63
+
+# ===== Dataset ===== #
+dataset: cifar10
+
+# ===== Learning Rate Policy ======== #
+optimizer: momentum #sgd #adam
+lr: 0.01 # 0.005
+
+# ===== Network training config ===== #
+prune_epochs: 100
+post_epochs: 160
+batch_size: 128
+lr_drop_rate: 0.2
+weight_decay: 0.0005
+lr_drops: [60,120]
+
+# ===== Sparsity =========== #
+pruner: rand  #synflow
+level_list: [10]
+compression_list: [1.7]
+
+
+# ===== Results ===== #
+expid: random_resnet20_cifar_seed_63_epochs_150_compr_1_7_multi
+verbose: True
+
+#  ===== Hardware setup ===== #
+workers: 1
+#gpu: 0
+

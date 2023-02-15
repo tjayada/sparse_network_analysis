@@ -1,7 +1,6 @@
 # Experiment
 experiment: gem_miner
 
-#subfolder: gemini
 
 # === Name === #
 name: FC
@@ -15,7 +14,6 @@ hidden_size: 600
 #bias: True
 
 # ===== Dataset ===== #
-#data_dir: ../data/
 dataset: MNIST
 
 # ===== Learning Rate Policy ======== #
@@ -27,7 +25,7 @@ lr_policy: cosine_lr #constant_lr #multistep_lr
 epochs: 25
 batch_size: 128
 freeze_weights: True
-seed: 63
+seed: 21 # 42 # 63
 target_sparsity: 2.0
 prune_type: BottomK
 init: signed_constant
@@ -56,7 +54,7 @@ lmbda: 0.0001 # 1e-4 #0.00005 # 5e-5
 
 # ===== Hardware setup ===== #
 workers: 1
-#gpu: 0
+gpu: 0
 
 skip_sanity_checks: False
 
