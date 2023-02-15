@@ -22,7 +22,7 @@ class ArgsHelper:
                             help="Where to save the runs. If None use ./runs")
         parser.add_argument("--name", default=None, type=str,
                             help="Name of experiment")
-        parser.add_argument("--config", default='Configs/hypercube/resnet20/resnet20_quantized_iter_hc_target_sparsity_1_4_highreg.yml',
+        parser.add_argument("--config", default='Configs/gemini_resnet20.yml',
                             help="Config file to use")
         parser.add_argument("--batch-size", type=int, default=64, metavar="N",
                             help="Input batch size for training (default: 64)")

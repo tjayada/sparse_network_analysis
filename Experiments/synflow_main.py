@@ -102,12 +102,14 @@ def run():
                 optimizer.load_state_dict(torch.load("{}/optimizer.pt".format(synflow_parser_args.result_dir), map_location=device))
                 scheduler.load_state_dict(torch.load("{}/scheduler.pt".format(synflow_parser_args.result_dir), map_location=device))
 
-            # Prune Result
-            prune_result = metrics.summary(model, 
-                                           pruner.scores,
-                                           metrics.flop(model, input_shape, device),
-                                           lambda p: generator.prunable(p, synflow_parser_args.prune_batchnorm, synflow_parser_args.prune_residual))
-            
+            # avoid all the pruning metrics when strucutre is hard-coded, indicated by synflow_parser_args.level_list[0] == 0
+            if synflow_parser_args.level_list[0] != 0:
+                # Prune Result
+                prune_result = metrics.summary(model, 
+                                               pruner.scores,
+                                               metrics.flop(model, input_shape, device),
+                                               lambda p: generator.prunable(p, synflow_parser_args.prune_batchnorm, synflow_parser_args.prune_residual))
+                
             # Save init model before training
             torch.save(model.state_dict(),"{}/model_before_train.pt".format(synflow_parser_args.result_dir))
 
@@ -117,26 +119,29 @@ def run():
             
 
             ## Display Results ##
-            frames = [pre_result.head(1), pre_result.tail(1), post_result.head(1), post_result.tail(1)]
-            train_result = pd.concat(frames, keys=['Init.', 'Pre-Prune', 'Post-Prune', 'Final'])
-            prune_result = metrics.summary(model, 
-                                           pruner.scores,
-                                           metrics.flop(model, input_shape, device),
-                                           lambda p: generator.prunable(p, synflow_parser_args.prune_batchnorm, synflow_parser_args.prune_residual))
-            total_params = int((prune_result['sparsity'] * prune_result['size']).sum())
-            possible_params = prune_result['size'].sum()
-            total_flops = int((prune_result['sparsity'] * prune_result['flops']).sum())
-            possible_flops = prune_result['flops'].sum()
-            print("Train results:\n", train_result)
-            print("Prune results:\n", prune_result)
-            print("Parameter Sparsity: {}/{} ({:.4f})".format(total_params, possible_params, total_params / possible_params))
-            print("FLOP Sparsity: {}/{} ({:.4f})".format(total_flops, possible_flops, total_flops / possible_flops))
+            if synflow_parser_args.level_list[0] != 0:
+                frames = [pre_result.head(1), pre_result.tail(1), post_result.head(1), post_result.tail(1)]
+                train_result = pd.concat(frames, keys=['Init.', 'Pre-Prune', 'Post-Prune', 'Final'])
+                prune_result = metrics.summary(model, 
+                                               pruner.scores,
+                                               metrics.flop(model, input_shape, device),
+                                               lambda p: generator.prunable(p, synflow_parser_args.prune_batchnorm, synflow_parser_args.prune_residual))
+                total_params = int((prune_result['sparsity'] * prune_result['size']).sum())
+                possible_params = prune_result['size'].sum()
+                total_flops = int((prune_result['sparsity'] * prune_result['flops']).sum())
+                possible_flops = prune_result['flops'].sum()
+                print("Train results:\n", train_result)
+                print("Prune results:\n", prune_result)
+                print("Parameter Sparsity: {}/{} ({:.4f})".format(total_params, possible_params, total_params / possible_params))
+                print("FLOP Sparsity: {}/{} ({:.4f})".format(total_flops, possible_flops, total_flops / possible_flops))
 
 
             # Save Data
             post_result.to_pickle("{}/post-train-{}-{}-{}.pkl".format(synflow_parser_args.result_dir, synflow_parser_args.pruner, str(compression),  str(level)))
-            prune_result.to_pickle("{}/compression-{}-{}-{}.pkl".format(synflow_parser_args.result_dir, synflow_parser_args.pruner, str(compression), str(level)))
+            if synflow_parser_args.level_list[0] != 0:
+                prune_result.to_pickle("{}/compression-{}-{}-{}.pkl".format(synflow_parser_args.result_dir, synflow_parser_args.pruner, str(compression), str(level)))
             torch.save(model.state_dict(),"{}/post-model.pt".format(synflow_parser_args.result_dir))
-            torch.save(optimizer.state_dict(),"{}/optimizer.pt".format(synflow_parser_args.result_dir))
-            torch.save(scheduler.state_dict(),"{}/scheduler.pt".format(synflow_parser_args.result_dir))
+            if synflow_parser_args.level_list[0] != 0:
+                torch.save(optimizer.state_dict(),"{}/optimizer.pt".format(synflow_parser_args.result_dir))
+                torch.save(scheduler.state_dict(),"{}/scheduler.pt".format(synflow_parser_args.result_dir))
 

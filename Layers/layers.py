@@ -1,4 +1,5 @@
 import math
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -21,6 +22,111 @@ class Linear(nn.Linear):
         else:
             b = self.bias
         return F.linear(input, W, b)
+
+# structure hard-coded
+class rnd_Linear(nn.Module):
+    def __init__(self, in_features, out_features, bias=True, sparse = 1):
+        super(rnd_Linear, self).__init__()        
+        first_layer = False
+        hidden_layer = False
+        self.weight = Parameter(torch.empty((out_features, in_features)))
+        if bias:
+            self.bias = Parameter(torch.empty((out_features)))
+        else:
+            self.register_parameter('bias', None)
+        
+        rnd_mask = torch.zeros(self.weight.shape)
+        
+        # for the amount of parameters that should remain do ..
+        # ps. not the best solution, since hard to know intuitively and multiple weights are placed down, thus not exact anyways
+        for _ in range(sparse):
+            same = True
+            # in case a weight is placed in a position already occupied, try again, until position is not same
+            while same:
+                # differentiate the different layers with the in and out features they are defined with
+                if in_features > 700:
+                    first_layer = True
+                    # only use the first 6 computational units, and randomly assign weigths
+                    rnd_x, rnd_y = torch.randint(6,(1,)), torch.randint(self.weight.shape[1],(1,))
+                
+                elif out_features == 10:
+                    # use all computational units and randomly assign weigths
+                    rnd_x, rnd_y = torch.randint(self.weight.shape[0],(1,)), torch.randint(self.weight.shape[1],(1,))
+                
+                else:
+                    hidden_layer = True
+                    # only use the first 30 computational units, and randomly assign weigths
+                    rnd_x, rnd_y = torch.randint(30,(1,)), torch.randint(self.weight.shape[1],(1,))
+
+                try:
+                    # check whether weight position is already occupied
+                    if rnd_mask[rnd_x, rnd_y] == 0:
+                        same = False
+                        # if not place weight, also in neighbouring unit
+                        rnd_mask[rnd_x, rnd_y] = 1
+                        rnd_mask[rnd_x + 1, rnd_y] = 1
+                        
+                        # check whether weight position of neighbour is already occupied
+                        if rnd_mask[rnd_x, rnd_y + 1] == 0:
+                            rnd_mask[rnd_x, rnd_y + 1] = 1
+                            
+                            if rnd_mask[rnd_x, rnd_y + 2] == 0:
+                                rnd_mask[rnd_x, rnd_y + 2] = 1
+            
+                except:
+                    pass
+
+        self.register_buffer('weight_mask', rnd_mask)
+        if self.bias is not None:
+            self.register_buffer('bias_mask', torch.ones(self.bias.shape))
+
+        self.reset_parameters(first_layer, hidden_layer)
+
+
+
+    def reset_parameters(self, first_layer, hidden_layer) -> None:
+        # Setting a=sqrt(5) in kaiming_uniform is the same as initializing with
+        # uniform(-1/sqrt(in_features), 1/sqrt(in_features)). For details, see
+        # https://github.com/pytorch/pytorch/issues/57109
+        init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        
+        
+        # has not been tested yet
+        # idea is to use mostly positive weights, as indicated by Gem-Miner results
+        # thus after same initialization as always, find negative weights and make positive
+        # but not all, only big fraction, and also depnendent on layer, since first layer mostly
+        # negative and hidden mostly positive and last equal
+        """
+        if first_layer:
+            x,y = np.argwhere(self.weight>0)
+
+            for i in range(len(x)):
+                if np.random.randint(3) > 1:
+                    self.weight[x[i]][y[i]] = -1 * self.weight[x[i]][y[i]]
+
+        elif hidden_layer:
+            x,y = np.argwhere(self.weight<0)
+
+            for i in range(len(x)):
+                if np.random.randint(2) == 1:
+                    self.weight[x[i]][y[i]] = abs(self.weight[x[i]][y[i]])
+
+        """
+
+        if self.bias is not None:
+            fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
+            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            init.uniform_(self.bias, -bound, bound)
+
+
+    def forward(self, input):
+        W = self.weight_mask * self.weight
+        if self.bias is not None:
+            b = self.bias_mask * self.bias
+        else:
+            b = self.bias
+        return F.linear(input, W, b)
+
 
 
 class Conv2d(nn.Conv2d):
