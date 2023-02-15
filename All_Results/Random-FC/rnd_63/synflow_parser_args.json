@@ -1,32 +1,29 @@
 {
-    "batch_size": 128,
     "compression": 0.0,
     "compression_list": [
-        1.7
+        0.625
     ],
     "compression_schedule": "exponential",
-    "config": "Configs/multi_synflow_resnet20.yml",
-    "dataset": "cifar10",
+    "config": "Configs/synflow_rnd_fc.yml",
+    "dataset": "mnist",
     "dense_classifier": false,
     "experiment": "synflow",
-    "expid": "random_resnet20_cifar_seed_63_epochs_150_compr_1_7_multi",
+    "expid": "synflow_rnd_fc_mnist_seed_63_epochs_20_compr_0_625",
     "gpu": 0,
     "invert": false,
     "level_list": [
-        10
+        0
     ],
-    "lr": 0.01,
-    "lr_drop_rate": 0.2,
-    "lr_drops": [
-        60,
-        120
-    ],
+    "lmbda": 0,
+    "lr": 0.1,
+    "lr_drop_rate": 0.1,
+    "lr_drops": [],
     "mask_scope": "global",
-    "model": "resnet20",
-    "model_class": "lottery",
+    "model": "rnd_fc",
+    "model_class": "default",
     "no_cuda": false,
-    "optimizer": "momentum",
-    "post_epochs": 160,
+    "optimizer": "sgd",
+    "post_epochs": 25,
     "pre_epochs": 0,
     "pretrained": false,
     "prune_batch_size": 256,
@@ -34,19 +31,19 @@
     "prune_bias": false,
     "prune_dataset_ratio": 10,
     "prune_epoch_list": [],
-    "prune_epochs": 100,
+    "prune_epochs": 1,
     "prune_residual": false,
     "prune_train_mode": false,
     "pruner": "rand",
     "pruner_list": [],
     "reinitialize": false,
-    "result_dir": "Results//synflow/random_resnet20_cifar_seed_63_epochs_150_compr_1_7_multi",
+    "result_dir": "Results//synflow/synflow_rnd_fc_mnist_seed_63_epochs_20_compr_0_625",
     "save": true,
     "seed": 63,
     "shuffle": false,
     "test_batch_size": 256,
     "train_batch_size": 64,
     "verbose": true,
-    "weight_decay": 0.0005,
+    "weight_decay": 0.0,
     "workers": 1
 }

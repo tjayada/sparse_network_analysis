@@ -37,7 +37,7 @@
     "prune_epochs": 100,
     "prune_residual": false,
     "prune_train_mode": false,
-    "pruner": "rand",
+    "pruner": "synflow",
     "pruner_list": [],
     "reinitialize": false,
     "result_dir": "Results//synflow/random_resnet20_cifar_seed_63_epochs_150_compr_1_7_multi",
