@@ -10,413 +10,7 @@ import networkx as nx
 torch.manual_seed(21)
 np.random.seed(21)
 
-# author: Kees @ https://stackoverflow.com/questions/54846905/pytorch-get-all-layers-of-model/69544742#69544742
-def get_children(model: torch.nn.Module):
-    # get children form model!
-    children = list(model.children())
-    flatt_children = []
-    if children == []:
-        # if model has no children; model is last child! :O
-        return model
-    else:
-       # look for children from children... to the last child!
-       for child in children:
-            try:
-                flatt_children.extend(get_children(child))
-            except TypeError:
-                flatt_children.append(get_children(child))
-    return flatt_children
 
-
-
-
-
-def check_sparsity(model: torch.nn.Module, layers: int = None, single: bool = False, relative: bool = False):
-    """Return the sparsity percentage of a given artificial neural network.
-
-    Keyword arguments:
-    model -- the model of which the sparsity should be calculated (no default)
-    layers -- a list of integers which specify the layers that should be investigated, if None, every layer is selected (default None)
-    single -- a boolean, if True, returns the sparsity of the single layer(s) parsed (default False)
-    relative -- a boolean, if True, returns the sparsity percentages relative to the whole model (default False)
-    """
-    
-    # get a list of all the layers in the model
-    each_layer = get_children(model)
-    
-    # layers that do not contribute to sparsity
-    banned_layers = ["Identity2d()",
-                     "ReLU()",
-                     "Flatten(start_dim=1, end_dim=-1)",
-                     "Conv2d(16, 32, kernel_size=(1, 1), stride=(2, 2), bias=False)", 
-                     "Conv2d(32, 64, kernel_size=(1, 1), stride=(2, 2), bias=False)"]
-
-    # declare empty sparsities dictionary
-    sparsities = {}
-    
-    # declare counter variables
-    all_zeros , all_ones = 0 , 0
-        
-    # if list of layers is passed, we iterate over them    
-    if layers != None:
-        for i in layers:
-            # if single arg is True, the sparsity of each passed layer is calculated while differentiating between the different keywords "flag" and "weight_mask"
-            # also if relative arg is True, then the sparsity percentages will be relative to the whole model, thus summing up to the overall model sparsity
-             if single:
-                if "running_mean" not in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
-                    if "flag" in each_layer[i].state_dict():
-                        key_word = "flag"
-                    elif "weight_mask" in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
-                        key_word = "weight_mask"
-
-                    arr , counts = np.unique(each_layer[i].state_dict()[key_word].numpy().flatten()  , return_counts=True) 
-                    
-                    # if the array with unique values is 1, 
-                    # then all weights must be pruned or none of the weights are pruned
-                    # thus fixing the calc by hand
-                    if len(arr) == 1:
-                        if int(arr[0]) == 1:
-                            if relative:
-                                calc = counts[0]
-                            else:
-                                calc = 100
-                        
-                        elif int(arr[0]) == 0:
-                            calc = 0
-                    
-                    else:
-                        if relative:
-                            calc = counts[1]
-                        else:
-                            calc = (counts[1] / (counts[0] + counts[1])) * 100     
-                              
-             # if single arg is False, the sparsity of all parsed layers is calculated at once, while differentiating between the different keywords "flag" and "weight_mask"
-             elif not single:
-                if "running_mean" not in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
-                    if "flag" in each_layer[i].state_dict():
-                        key_word = "flag"
-                    elif "weight_mask" in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
-                        key_word = "weight_mask"
-
-                    arr , counts = np.unique(each_layer[i].state_dict()[key_word].numpy().flatten()  , return_counts=True)
-                    
-                    # if the array with unique values is 1, 
-                    # then all weights must be pruned or none of the weights are pruned
-                    # thus fixing the calc by hand
-                    if len(arr) == 1:
-                        if int(arr[0]) == 1:
-                                all_zeros += 0
-                                all_ones += counts[0]
-                            
-                        elif int(arr[0]) == 0:
-                            all_zeros += counts[0]
-                            all_ones += 0
-                    
-                    else:
-                        all_zeros += counts[0]
-                        all_ones += counts[1]
-                        
-        
-        # if single arg is False, then the sparsity of multiple layers must be calculated, thus using the all_ones and all_zeros variables to calculate after for loop above is done        
-        if not single:
-            calc = (all_ones / (all_zeros + all_ones)) * 100
-            sparsities[f"selected_layers_{layers}"] = round(calc , 3)
-
-    # if no layers are passed, that means every layer is selected, combined with single arg True this means iterating over all layers and saving single layers sparsities        
-    elif layers == None and single:
-        for i in range((len(each_layer))):
-            if "running_mean" not in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
-                if "flag" in each_layer[i].state_dict():
-                    key_word = "flag"
-                elif "weight_mask" in each_layer[i].state_dict():
-                    key_word = "weight_mask"
-                
-                arr , counts = np.unique(each_layer[i].state_dict()[key_word].numpy().flatten()  , return_counts=True)
-                
-                # if the array with unique values is 1, 
-                # then all weights must be pruned or none of the weights are pruned
-                # thus fixing the calc by hand
-                if len(arr) == 1:
-                        if int(arr[0]) == 1:
-                            if relative:
-                                calc = counts[0]
-                            else:
-                                calc = 100
-                        
-                        elif int(arr[0]) == 0:
-                            calc = 0
-                    
-                else:
-                    if relative:
-                        calc = counts[1]
-                    else:
-                        calc = (counts[1] / (counts[0] + counts[1])) * 100
-                        
-                sparsities[f"layer_{i}"] = round(calc , 3)
-            
-
-    # declaring the overall sparsity which will always be part of the dictionary regardles of the parsed args    
-    sparsities["overall_sparsity"] = 0
-
-    # declaring the counter variables again for the overall sparsity
-    all_zeros = 0
-    all_ones = 0
-
-    # iterate over all layers and calculate overall model sparsity
-    for i in range(len(each_layer)):
-        if "running_mean" not in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
-            if "flag" in each_layer[i].state_dict():
-                key_word = "flag"
-            elif "weight_mask" in each_layer[i].state_dict():
-                key_word = "weight_mask"
-                    
-            arr , counts = np.unique(each_layer[i].state_dict()[key_word].numpy().flatten()  , return_counts=True)
-            
-            if len(arr) == 1:
-                if int(arr[0]) == 1:
-                        all_zeros += 0
-                        all_ones += counts[0]
-
-                elif int(arr[0]) == 0:
-                    all_zeros += counts[0]
-                    all_ones += 0
-                    
-            else:
-                all_zeros += counts[0]
-                all_ones += counts[1]
-
-    calc = (all_ones / (all_zeros + all_ones)) * 100
-    sparsities["overall_sparsity"] = round(calc , 3)
-    
-    # if single and relative args are True, then all the single layers sparsities will be made relative to the whole model
-    if single and relative:
-        for i, j in sparsities.items():
-             if i != "overall_sparsity":
-                sparsities[i] = round((j / (all_zeros + all_ones)) * 100, 3)
-            
-    
-    return sparsities
-
-
-
-def get_filters(model: torch.nn.Module, layers: int = None):
-    """
-    CHANGE
-    """
-    
-    # get a list of all the layers in the model
-    each_layer = get_children(model)
-    
-    # layers that do not contribute to sparsity
-    banned_layers = ["Identity2d()",
-                     "ReLU()",
-                     "Flatten(start_dim=1, end_dim=-1)",
-                     "Conv2d(16, 32, kernel_size=(1, 1), stride=(2, 2), bias=False)", 
-                     "Conv2d(32, 64, kernel_size=(1, 1), stride=(2, 2), bias=False)",
-                     ]
-
-    # declare empty list for all filters in which single filter will be appended
-    all_filters = []
-    
-        
-    # if list of layers is passed, we iterate over them    
-    if layers != None:
-        for i in layers:
-            if "running_mean" not in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
-                if "flag" in each_layer[i].state_dict():
-                    key_word = "flag"
-                elif "weight_mask" in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
-                    key_word = "weight_mask"
-
-                    single_filter = np.array(each_layer[i].state_dict()[key_word]) * np.array(each_layer[i].state_dict()["weight"])
-
-                    all_filters.append(single_filter)   
-
-    # if no layers are passed, that means every layer is selected       
-    elif layers == None:
-        for i in range((len(each_layer))):
-            if "running_mean" not in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
-                if "flag" in each_layer[i].state_dict():
-                    key_word = "flag"
-                elif "weight_mask" in each_layer[i].state_dict():
-                    key_word = "weight_mask"
-                
-                single_filter = np.array(each_layer[i].state_dict()[key_word]) * np.array(each_layer[i].state_dict()["weight"])
-
-                all_filters.append(single_filter) 
-                
-        
-    return all_filters
-
-
-"""
-def get_feature_map(image: np.ndarray, filters: np.ndarray, layers: int = None):
-    
-    #### doc string
-    
-    all_feature_maps = []
-    single = False
-    
-    if isinstance(layers, int):
-        layers = [layers]
-    
-    # take max of layer list 
-    if layers == None:
-        wanted_layer = len(filters)
-    else:
-        wanted_layer = max(layers) + 1
-        
-        if len(layers) == 1:
-            single = True
-    
-    
-    for i in range(wanted_layer):
-
-        filter_for_layer = torch.from_numpy(filters[i])
-
-        feature_maps = torch.nn.functional.conv2d(image, filter_for_layer, padding=1, dilation=1)
-
-        image = feature_maps
-        
-        if layers == None:
-            all_feature_maps.append(feature_maps[0].numpy())
-        elif i in layers:
-            all_feature_maps.append(feature_maps[0].numpy())
-    
-    if single:
-        return all_feature_maps[0]     
-    
-    return all_feature_maps
-"""
-
-
-def get_feature_map(image: np.ndarray, filters: np.ndarray, layers: int = None, dense: str = None):
-    
-    #### doc string
-    assert dense in [None, "last", "all"]
-    all_feature_maps = []
-    single = False
-    
-    if isinstance(layers, int):
-        layers = [layers]
-    
-    # take max of layer list 
-    if layers == None:
-        wanted_layer = len(filters)
-    else:
-        wanted_layer = max(layers) + 1
-        
-        if len(layers) == 1:
-            single = True
-    
-    
-    for i in range(wanted_layer):
-
-        filter_for_layer = torch.from_numpy(filters[i])
-        
-        if dense == "all":
-            if i == 0:
-                first_image = image.flatten()
-                feature_maps = torch.nn.functional.linear(first_image, filter_for_layer)
-                
-            else:
-                feature_maps = torch.nn.functional.linear(image, filter_for_layer)
-            
-            
-        elif dense == "last" and i == wanted_layer - 1:
-            out = torch.nn.functional.avg_pool2d(image, image.size()[3])
-            out = out.view(out.size(0), -1)
-            feature_maps = torch.nn.functional.linear(out, filter_for_layer)
-        
-        else:
-            feature_maps = torch.nn.functional.conv2d(image, filter_for_layer, padding=1, dilation=1)
-
-        image = feature_maps
-        
-        if layers == None:
-            if dense == "all":
-                all_feature_maps.append(feature_maps.numpy())
-            else:   
-                all_feature_maps.append(feature_maps[0].numpy())
-        elif i in layers:
-            if dense == "all":
-                all_feature_maps.append(feature_maps.numpy())
-            else:   
-                all_feature_maps.append(feature_maps[0].numpy())
-    
-    if single:
-        return all_feature_maps[0]     
-    
-    return all_feature_maps
-
-
-"""
-def get_feature_map(image: np.ndarray, filters: np.ndarray, layers: int = None, dense: str = "last"):
-    
-    #### doc string
-    assert dense in ["last", "all"]
-    all_feature_maps = []
-    single = False
-    
-    if isinstance(layers, int):
-        layers = [layers]
-    
-    # take max of layer list 
-    if layers == None:
-        wanted_layer = len(filters)
-    else:
-        wanted_layer = max(layers) + 1
-        
-        if len(layers) == 1:
-            single = True
-    
-    
-    for i in range(wanted_layer):
-
-        filter_for_layer = torch.from_numpy(filters[i])
-        
-        if dense == "all":
-            print(i)
-            if i == 0:
-                first_image = image.flatten()
-                feature_maps = torch.nn.functional.linear(first_image, filter_for_layer)
-                print(feature_maps.shape)
-                
-            else:
-                feature_maps = torch.nn.functional.linear(image, filter_for_layer)
-                print(feature_maps.shape)
-            
-            #if "last layer und so":
-                # use softmax ?
-            #    pass
-            
-        elif dense == "last" and i == wanted_layer - 1:
-            out = torch.nn.functional.avg_pool2d(image, image.size()[3])
-            out = out.view(out.size(0), -1)
-            feature_maps = torch.nn.functional.linear(out, filter_for_layer)
-        
-        else:
-            feature_maps = torch.nn.functional.conv2d(image, filter_for_layer, padding=1, dilation=1)
-
-        image = feature_maps
-        
-        if layers == None:
-            if dense == "all":
-                all_feature_maps.append(feature_maps.numpy())
-            else:   
-                all_feature_maps.append(feature_maps[0].numpy())
-        elif i in layers:
-            if dense == "all":
-                all_feature_maps.append(feature_maps.numpy())
-            else:   
-                all_feature_maps.append(feature_maps[0].numpy())
-    
-    if single:
-        return all_feature_maps[0]     
-    
-    return all_feature_maps
-
-"""
 
 class get_images_cifar10(object):
     def __init__(self, batch_size: int = 1):
@@ -656,7 +250,7 @@ class get_images_mnist(object):
 
 def make_good_grid(batch_size, unique = False):
 
-    ''' NEED DOCSTRING 
+    ''' creates a grid to better display images
     '''
 
     if not unique:
@@ -679,9 +273,308 @@ def make_good_grid(batch_size, unique = False):
     return best_result
 
 
+# author: Kees @ https://stackoverflow.com/questions/54846905/pytorch-get-all-layers-of-model/69544742#69544742
+def get_children(model: torch.nn.Module):
+    # get children form model!
+    children = list(model.children())
+    flatt_children = []
+    if children == []:
+        # if model has no children; model is last child! :O
+        return model
+    else:
+       # look for children from children... to the last child!
+       for child in children:
+            try:
+                flatt_children.extend(get_children(child))
+            except TypeError:
+                flatt_children.append(get_children(child))
+    return flatt_children
+
+
+
+def check_sparsity(model: torch.nn.Module, layers: int = None, single: bool = False, relative: bool = False):
+    """Return the sparsity percentage of a given artificial neural network.
+
+    Keyword arguments:
+    model -- the model of which the sparsity should be calculated (no default)
+    layers -- a list of integers which specify the layers that should be investigated, if None, every layer is selected (default None)
+    single -- a boolean, if True, returns the sparsity of the single layer(s) parsed (default False)
+    relative -- a boolean, if True, returns the sparsity percentages relative to the whole model (default False)
+    """
+    
+    # get a list of all the layers in the model
+    each_layer = get_children(model)
+    
+    # layers that do not contribute to sparsity
+    banned_layers = ["Identity2d()",
+                     "ReLU()",
+                     "Flatten(start_dim=1, end_dim=-1)",
+                     "Conv2d(16, 32, kernel_size=(1, 1), stride=(2, 2), bias=False)", 
+                     "Conv2d(32, 64, kernel_size=(1, 1), stride=(2, 2), bias=False)"]
+
+    # declare empty sparsities dictionary
+    sparsities = {}
+    
+    # declare counter variables
+    all_zeros , all_ones = 0 , 0
+        
+    # if list of layers is passed, we iterate over them    
+    if layers != None:
+        for i in layers:
+            # if single arg is True, the sparsity of each passed layer is calculated while differentiating between the different keywords "flag" and "weight_mask"
+            # also if relative arg is True, then the sparsity percentages will be relative to the whole model, thus summing up to the overall model sparsity
+             if single:
+                if "running_mean" not in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
+                    if "flag" in each_layer[i].state_dict():
+                        key_word = "flag"
+                    elif "weight_mask" in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
+                        key_word = "weight_mask"
+
+                    arr , counts = np.unique(each_layer[i].state_dict()[key_word].numpy().flatten()  , return_counts=True) 
+                    
+                    # if the array with unique values is 1, 
+                    # then all weights must be pruned or none of the weights are pruned
+                    # thus fixing the calc by hand
+                    if len(arr) == 1:
+                        if int(arr[0]) == 1:
+                            if relative:
+                                calc = counts[0]
+                            else:
+                                calc = 100
+                        
+                        elif int(arr[0]) == 0:
+                            calc = 0
+                    
+                    else:
+                        if relative:
+                            calc = counts[1]
+                        else:
+                            calc = (counts[1] / (counts[0] + counts[1])) * 100     
+                              
+             # if single arg is False, the sparsity of all parsed layers is calculated at once, while differentiating between the different keywords "flag" and "weight_mask"
+             elif not single:
+                if "running_mean" not in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
+                    if "flag" in each_layer[i].state_dict():
+                        key_word = "flag"
+                    elif "weight_mask" in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
+                        key_word = "weight_mask"
+
+                    arr , counts = np.unique(each_layer[i].state_dict()[key_word].numpy().flatten()  , return_counts=True)
+                    
+                    # if the array with unique values is 1, 
+                    # then all weights must be pruned or none of the weights are pruned
+                    # thus fixing the calc by hand
+                    if len(arr) == 1:
+                        if int(arr[0]) == 1:
+                                all_zeros += 0
+                                all_ones += counts[0]
+                            
+                        elif int(arr[0]) == 0:
+                            all_zeros += counts[0]
+                            all_ones += 0
+                    
+                    else:
+                        all_zeros += counts[0]
+                        all_ones += counts[1]
+                        
+        
+        # if single arg is False, then the sparsity of multiple layers must be calculated, thus using the all_ones and all_zeros variables to calculate after for loop above is done        
+        if not single:
+            calc = (all_ones / (all_zeros + all_ones)) * 100
+            sparsities[f"selected_layers_{layers}"] = round(calc , 3)
+
+    # if no layers are passed, that means every layer is selected, combined with single arg True this means iterating over all layers and saving single layers sparsities        
+    elif layers == None and single:
+        for i in range((len(each_layer))):
+            if "running_mean" not in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
+                if "flag" in each_layer[i].state_dict():
+                    key_word = "flag"
+                elif "weight_mask" in each_layer[i].state_dict():
+                    key_word = "weight_mask"
+                
+                arr , counts = np.unique(each_layer[i].state_dict()[key_word].numpy().flatten()  , return_counts=True)
+                
+                # if the array with unique values is 1, 
+                # then all weights must be pruned or none of the weights are pruned
+                # thus fixing the calc by hand
+                if len(arr) == 1:
+                        if int(arr[0]) == 1:
+                            if relative:
+                                calc = counts[0]
+                            else:
+                                calc = 100
+                        
+                        elif int(arr[0]) == 0:
+                            calc = 0
+                    
+                else:
+                    if relative:
+                        calc = counts[1]
+                    else:
+                        calc = (counts[1] / (counts[0] + counts[1])) * 100
+                        
+                sparsities[f"layer_{i}"] = round(calc , 3)
+            
+
+    # declaring the overall sparsity which will always be part of the dictionary regardles of the parsed args    
+    sparsities["overall_sparsity"] = 0
+
+    # declaring the counter variables again for the overall sparsity
+    all_zeros = 0
+    all_ones = 0
+
+    # iterate over all layers and calculate overall model sparsity
+    for i in range(len(each_layer)):
+        if "running_mean" not in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
+            if "flag" in each_layer[i].state_dict():
+                key_word = "flag"
+            elif "weight_mask" in each_layer[i].state_dict():
+                key_word = "weight_mask"
+                    
+            arr , counts = np.unique(each_layer[i].state_dict()[key_word].numpy().flatten()  , return_counts=True)
+            
+            if len(arr) == 1:
+                if int(arr[0]) == 1:
+                        all_zeros += 0
+                        all_ones += counts[0]
+
+                elif int(arr[0]) == 0:
+                    all_zeros += counts[0]
+                    all_ones += 0
+                    
+            else:
+                all_zeros += counts[0]
+                all_ones += counts[1]
+
+    calc = (all_ones / (all_zeros + all_ones)) * 100
+    sparsities["overall_sparsity"] = round(calc , 3)
+    
+    # if single and relative args are True, then all the single layers sparsities will be made relative to the whole model
+    if single and relative:
+        for i, j in sparsities.items():
+             if i != "overall_sparsity":
+                sparsities[i] = round((j / (all_zeros + all_ones)) * 100, 3)
+            
+    
+    return sparsities
+
+
+
+def get_filters(model: torch.nn.Module, layers: int = None):
+    """
+    Get the units or filters of the model passed
+    """
+    
+    # get a list of all the layers in the model
+    each_layer = get_children(model)
+    
+    # layers that do not contribute to sparsity
+    banned_layers = ["Identity2d()",
+                     "ReLU()",
+                     "Flatten(start_dim=1, end_dim=-1)",
+                     "Conv2d(16, 32, kernel_size=(1, 1), stride=(2, 2), bias=False)", 
+                     "Conv2d(32, 64, kernel_size=(1, 1), stride=(2, 2), bias=False)",
+                     ]
+
+    # declare empty list for all filters in which single filter will be appended
+    all_filters = []
+    
+        
+    # if list of layers is passed, we iterate over them    
+    if layers != None:
+        for i in layers:
+            if "running_mean" not in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
+                if "flag" in each_layer[i].state_dict():
+                    key_word = "flag"
+                elif "weight_mask" in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
+                    key_word = "weight_mask"
+
+                    single_filter = np.array(each_layer[i].state_dict()[key_word]) * np.array(each_layer[i].state_dict()["weight"])
+
+                    all_filters.append(single_filter)   
+
+    # if no layers are passed, that means every layer is selected       
+    elif layers == None:
+        for i in range((len(each_layer))):
+            if "running_mean" not in each_layer[i].state_dict() and str(each_layer[i]) not in banned_layers:
+                if "flag" in each_layer[i].state_dict():
+                    key_word = "flag"
+                elif "weight_mask" in each_layer[i].state_dict():
+                    key_word = "weight_mask"
+                
+                single_filter = np.array(each_layer[i].state_dict()[key_word]) * np.array(each_layer[i].state_dict()["weight"])
+
+                all_filters.append(single_filter) 
+                
+        
+    return all_filters
+
+
+
+def get_feature_map(image: np.ndarray, filters: np.ndarray, layers: int = None, dense: str = None):
+    
+    #### return feature maps of the model passed. model passed as units or filters created by def get_filters(
+    assert dense in [None, "last", "all"]
+    all_feature_maps = []
+    single = False
+    
+    if isinstance(layers, int):
+        layers = [layers]
+    
+    # take max of layer list 
+    if layers == None:
+        wanted_layer = len(filters)
+    else:
+        wanted_layer = max(layers) + 1
+        
+        if len(layers) == 1:
+            single = True
+    
+    
+    for i in range(wanted_layer):
+
+        filter_for_layer = torch.from_numpy(filters[i])
+        
+        if dense == "all":
+            if i == 0:
+                first_image = image.flatten()
+                feature_maps = torch.nn.functional.linear(first_image, filter_for_layer)
+                
+            else:
+                feature_maps = torch.nn.functional.linear(image, filter_for_layer)
+            
+            
+        elif dense == "last" and i == wanted_layer - 1:
+            out = torch.nn.functional.avg_pool2d(image, image.size()[3])
+            out = out.view(out.size(0), -1)
+            feature_maps = torch.nn.functional.linear(out, filter_for_layer)
+        
+        else:
+            feature_maps = torch.nn.functional.conv2d(image, filter_for_layer, padding=1, dilation=1)
+
+        image = feature_maps
+        
+        if layers == None:
+            if dense == "all":
+                all_feature_maps.append(feature_maps.numpy())
+            else:   
+                all_feature_maps.append(feature_maps[0].numpy())
+        elif i in layers:
+            if dense == "all":
+                all_feature_maps.append(feature_maps.numpy())
+            else:   
+                all_feature_maps.append(feature_maps[0].numpy())
+    
+    if single:
+        return all_feature_maps[0]     
+    
+    return all_feature_maps
+
+
+
 
 def get_activation_series(images, filters, dense):
-    ''' NEED DOCSTRING
+    ''' returns cocatenated feature maps as described by Li et al in paper Convergent Learning
     '''
     
     
@@ -719,18 +612,16 @@ def get_activation_series(images, filters, dense):
 
 
 def get_correlation(activations_model_1, activations_model_2 = None):
-    '''NEEEEEEED DOOCSTRING
+    '''return correlation of two activation series 
     '''
-
 
     # For convolutional layers, we compute the mean and standard deviation of each channel. 
 
     # The mean and standard deviation for a given network and layer is a vector with length equal to 
     # the number of channels (for convolutional layers)
     
-    # calculate corelation after converging learning paper
+    # --> calculate corelation after converging learning paper
 
-    # within or without
     
     if activations_model_2 == None:
         activations_model_2 = activations_model_1
@@ -843,39 +734,6 @@ def change_mat(mat, order):
     
     return new_matrix
 
-"""
-def change_mat_max(mat, order):
-    '''taken from that paper, combination of 2 functions'''
-    
-    seen = set()
-    ret = []
-    lengths = []
-    while len(seen) < len(order):
-        # Find first new element
-        for ii in range(len(order)):
-            if ii not in seen:
-                idx_start = ii
-                break
-        this_length = 1
-        ret.append(idx_start)
-        seen.add(idx_start)
-        ii = order[idx_start]
-        while ii != idx_start:
-            ret.append(ii)
-            seen.add(ii)
-            ii = order[ii]
-            this_length += 1
-        lengths.append(this_length)
-    
-    #return ret,lengths
-    
-    new_order = np.array(ret)
-    ret = mat[new_order,:][:,new_order]
-    assert np.all(abs(np.sort(mat.sum(0)) - np.sort(ret.sum(0))) < 1.0), 'sanity check'
-    assert np.all(abs(np.sort(mat.sum(1)) - np.sort(ret.sum(1))) < 1.0), 'sanity check'
-    return ret
-"""    
-
 
 
 def get_image_patch(images, layer, unit, filters, dense, how_many = 1) :
@@ -928,7 +786,7 @@ def get_image_patch(images, layer, unit, filters, dense, how_many = 1) :
 
 
 def order_by_dist(mod1, mod2, dist_measure, fc = False, nED = False):
-    """ NEED DOC STRING
+    """ order a model based on similarity through distance measure
     
     """
     
@@ -1072,19 +930,6 @@ def plot_units(units, model, sparse):
 
 
 
-"""
-def get_weight_distance(unit):
-    
-    weight_idxs = np.argwhere(unit)
-    
-    weight_dist = 0
-    for idx in range(len(weight_idxs)):
-        try:
-            weight_dist += (weight_idxs[idx] - weight_idxs[idx + 1])
-        except:
-            return abs(int(weight_dist / len(weight_idxs)) - 1)
-    return np.nan
-"""
 def get_weight_distance(unit):
     
     weight_idxs = np.argwhere(unit)
@@ -1128,72 +973,7 @@ def get_weight_positions(model):
     
     return positions_model
 
-"""
-def count_clusters(model):
-     
-    clusters_model = []
-    for layer in model:
-        clusters_layer = []
-        for unit in layer:
-            clusters_unit = []
-            weight_idxs = np.argwhere(unit.flatten())
-            count = 0
-            for i in range(len(weight_idxs)):
-                try:
-                    if int(weight_idxs[i] + 1) == int(weight_idxs[i + 1]):
-                        clusters_unit.append(count)
-                    else:
-                        count += 1
-                        clusters_unit.append(count)
-                        
-                except:
-                    pass
-                        
-            clusters = len(np.unique(np.array(clusters_unit)))
-            clusters_layer.append(clusters)
-        
-        clusters_model.append(clusters_layer)   
-    
-    return clusters_model
 
-"""
-
-"""
-def count_clusters(model):
-     
-    clusters_model = []
-    clusters_size_model = []
-    for layer in model:
-        clusters_layer = []
-        clusters_size_layer = []
-        for unit in layer:
-            clusters_unit = []
-            weight_idxs = np.argwhere(unit.flatten())
-            count = 0
-            for i in range(len(weight_idxs)):
-                try:
-                    if int(weight_idxs[i] + 1) == int(weight_idxs[i + 1]):
-                        clusters_unit.append(count)
-                    else:
-                        count += 1
-                        clusters_unit.append(count)
-                        
-                except:
-                    pass
-                        
-            clusters, counts = np.unique(np.array(clusters_unit), return_counts=True)
-            
-            clusters_layer.append(len(clusters))
-            if counts != []:
-                clusters_size_layer.append(np.round(np.mean(counts)))
-            
-        
-        clusters_model.append(clusters_layer)   
-        clusters_size_model.append(clusters_size_layer)   
-    
-    return clusters_model, clusters_size_model
-
-"""
 
 def count_clusters(model):
      
